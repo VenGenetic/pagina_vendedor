@@ -121,7 +121,7 @@ export default function NewSalePage() {
 
   // Validate Stock
   const insufficientStockItems = items.filter(item => {
-    const product = allProducts?.find(p => p.id === item.productId) || recentProducts.find(p => p.id === item.productId);
+    const product = filteredProducts?.find((p) => p.id === item.productId) || recentProducts.find(p => p.id === item.productId);
     return product ? item.quantity > product.current_stock : false;
   });
 
@@ -399,7 +399,7 @@ export default function NewSalePage() {
             {items.length > 0 ? (
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {items.map((item, index) => {
-                  const product = allProducts?.find((p) => p.id === item.productId) || recentProducts.find(p => p.id === item.productId);
+                  const product = filteredProducts?.find((p) => p.id === item.productId) || recentProducts.find(p => p.id === item.productId);
                   const isStockIssue = product ? item.quantity > product.current_stock : false;
                   return (
                     <div key={index} className={`p-4 flex justify-between items-center gap-4 ${isStockIssue ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
@@ -491,7 +491,7 @@ export default function NewSalePage() {
               <span className="text-emerald-600 dark:text-emerald-500 font-semibold">Ganancia Estimada Total</span>
               <span className="text-emerald-600 dark:text-emerald-500 font-bold">
                 {formatCurrency(items.reduce((acc, item) => {
-                  const product = allProducts?.find((p) => p.id === item.productId) || recentProducts.find(p => p.id === item.productId);
+                  const product = filteredProducts?.find((p) => p.id === item.productId) || recentProducts.find(p => p.id === item.productId);
                   if (!product) return acc;
                   // Profit = (Selling Price - Discount Share) - (Cost + IVA)
                   // Simplified: (Item Total - 0) - (Item Cost + IVA)

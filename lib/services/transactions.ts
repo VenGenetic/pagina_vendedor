@@ -92,7 +92,7 @@ export async function processSale(input: CreateSaleInput) {
       p_user_name: user.name,
       p_notes: input.notas,
       p_shipping_account_id: input.id_cuenta_envio
-    });
+    } as any);
 
     if (error) throw error;
 
