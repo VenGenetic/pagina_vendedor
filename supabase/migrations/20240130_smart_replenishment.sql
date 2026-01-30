@@ -67,6 +67,8 @@ sales_metrics AS (
         p.created_at,
         p.cost_price,
         p.selling_price,
+        p.category,
+        p.brand,
         
         -- Recent Period: Last 5 Days (Day 0 to Day -4)
         COALESCE(SUM(ds.qty_sold) FILTER (WHERE ds.day >= (current_date - INTERVAL '4 days')), 0) AS sales_last_5,
@@ -80,13 +82,15 @@ sales_metrics AS (
     FROM products p
     LEFT JOIN daily_sales ds ON p.id = ds.product_id
     WHERE p.is_active = true
-    GROUP BY p.id, p.sku, p.name, p.current_stock, p.min_stock_level, p.created_at, p.cost_price, p.selling_price
+    GROUP BY p.id, p.sku, p.name, p.current_stock, p.min_stock_level, p.created_at, p.cost_price, p.selling_price, p.category, p.brand
 )
 
 SELECT 
     product_id,
     sku,
     name,
+    category,
+    brand,
     current_stock,
     cost_price,
     selling_price,

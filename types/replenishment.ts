@@ -2,6 +2,8 @@ export interface SmartReplenishmentItem {
     product_id: string;
     sku: string;
     name: string;
+    category: string | null;
+    brand: string | null;
     current_stock: number;
     cost_price: number;
     selling_price: number;
