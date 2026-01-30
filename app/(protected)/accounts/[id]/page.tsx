@@ -1,0 +1,248 @@
+'use client';
+
+import { useAccountTransactions, useAccounts } from '@/hooks/use-queries';
+import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, User, Loader2, FileText, Wallet, ArrowRightLeft } from 'lucide-react';
+import Link from 'next/link';
+import { formatCurrency, formatDateTime, cn, getAccountColor } from '@/lib/utils';
+import { useParams } from 'next/navigation';
+import { useState, useMemo } from 'react';
+import { TransferModal } from '@/components/transactions/transfer-modal';
+
+export default function AccountDetailsPage() {
+  const params = useParams();
+  const accountId = params.id as string;
+  const { data: transactions, isLoading: loadingTx } = useAccountTransactions(accountId);
+  const { data: accounts } = useAccounts();
+  
+  const account = accounts?.find(a => a.id === accountId);
+  const [showTransfer, setShowTransfer] = useState(false);
+
+  const transactionsWithBalance = useMemo(() => {
+    if (!transactions || !account || transactions.length === 0) return [];
+    
+    // Sort transactions by date desc just to be safe, though they come sorted
+    const sortedTx = [...transactions].sort((a: any, b: any) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    let runningBalance = account.balance;
+
+    return sortedTx.map((tx: any) => {
+      // Determine direction relative to THIS account
+      let signedAmount = 0;
+      
+      if (tx.account_in_id === accountId) {
+         // Money coming IN (Transfer received)
+         signedAmount = tx.amount;
+      } else if (tx.account_out_id === accountId) {
+         // Money going OUT (Transfer sent)
+         signedAmount = -tx.amount;
+      } else {
+         // Regular Income/Expense
+         if (tx.type === 'INCOME' && tx.account_id === accountId) signedAmount = tx.amount;
+         else if (tx.type === 'EXPENSE' && tx.account_id === accountId) signedAmount = -tx.amount;
+      }
+
+      // The current runningBalance is the balance AFTER this transaction
+      const balanceAfter = runningBalance;
+      
+      // Calculate balance BEFORE this transaction (which is balance AFTER the next older one)
+      runningBalance -= signedAmount;
+
+      return {
+        ...tx,
+        balanceAfter
+      };
+    });
+  }, [transactions, account, accountId]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 transition-colors">
+      {/* Transfer Modal */}
+      {account && accounts && (
+        <TransferModal 
+          isOpen={showTransfer} 
+          onClose={() => setShowTransfer(false)} 
+          sourceAccount={account}
+          accounts={accounts}
+        />
+      )}
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 transition-colors">
+        <div className="max-w-md mx-auto flex h-16 items-center gap-4 px-4">
+          <Link href="/">
+            <button className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+              <ArrowLeft className="h-5 w-5 text-slate-700 dark:text-slate-200" />
+            </button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+              {account?.name || 'Detalles de Cuenta'}
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Movimientos
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-md mx-auto p-4 space-y-4">
+        {/* Balance Card */}
+        {account && (
+          <div className={cn(
+            "rounded-2xl p-6 shadow-lg relative overflow-hidden bg-gradient-to-br",
+            getAccountColor(account.name).gradient,
+            getAccountColor(account.name).text
+          )}>
+            {/* Background Pattern */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center gap-2 mb-2">
+                <Wallet className="h-4 w-4 opacity-70" />
+                <p className="text-sm opacity-80">Saldo Actual</p>
+              </div>
+              <h2 className="text-4xl font-bold mb-4 tracking-tight">
+                {formatCurrency(account.balance)}
+              </h2>
+              
+              <div className="flex justify-between items-end">
+                <p className="text-xs uppercase tracking-wider font-semibold border border-current px-2 py-1 rounded opacity-70">
+                  {account.type}
+                </p>
+                
+                {/* Transfer Button */}
+                <button 
+                  onClick={() => setShowTransfer(true)}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-blue-900/50 transition-all active:scale-95 z-20"
+                >
+                  <ArrowRightLeft className="w-4 h-4" />
+                  TRANSFERIR
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {loadingTx ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          </div>
+        ) : !transactions || transactions.length === 0 ? (
+          <div className="text-center py-10 text-slate-500">
+            <FileText className="h-12 w-12 mx-auto mb-2 opacity-20" />
+            <p>No hay movimientos registrados en esta cuenta</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Historial de Transacciones</h3>
+            {transactionsWithBalance.map((tx: any) => {
+              // Determinar si es entrada o salida para ESTA cuenta
+              const isEntry = tx.account_in_id === accountId || (tx.type === 'INCOME' && tx.account_id === accountId && !tx.account_out_id);
+              // Si es transferencia interna, puede ser salida
+              const isExit = tx.account_out_id === accountId || (tx.type === 'EXPENSE' && tx.account_id === accountId);
+              
+              const isPositive = isEntry && !isExit; // Solo entrada
+              // En transferencias puede ser ambas si es la misma cta (no debería pasar)
+              
+              // Ajuste visual para cuando es ambiguo, por defecto usamos el tipo
+              const showGreen = isEntry; 
+
+              // Check if it's a transfer involving another known bank to apply colors to the row
+              let otherAccountName = '';
+              if (tx.account_in_id && tx.account_out_id) {
+                 otherAccountName = isEntry ? tx.account_out?.name : tx.account_in?.name;
+              }
+              const otherAccountColors = otherAccountName ? getAccountColor(otherAccountName) : null;
+              
+              return (
+                <div 
+                  key={tx.id} 
+                  className={cn(
+                    "bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm transition-all",
+                    otherAccountColors?.border ? `border-l-4 ${otherAccountColors.border.replace('border-', 'border-l-')}` : "border-slate-200 dark:border-slate-800"
+                  )}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-3">
+                      {showGreen ? (
+                        <div className={cn("p-2 rounded-full", otherAccountColors ? otherAccountColors.iconBg : "bg-emerald-100")}>
+                          <ArrowDownCircle className={cn("h-5 w-5", otherAccountColors ? otherAccountColors.iconColor : "text-emerald-600")} />
+                        </div>
+                      ) : (
+                        <div className={cn("p-2 rounded-full", otherAccountColors ? otherAccountColors.iconBg : "bg-rose-100")}>
+                          <ArrowUpCircle className={cn("h-5 w-5", otherAccountColors ? otherAccountColors.iconColor : "text-rose-600")} />
+                        </div>
+                      )}
+                      <div>
+                        {otherAccountName ? (
+                           <div className="flex flex-col">
+                             <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">
+                               {isEntry ? 'Recibido de:' : 'Enviado a:'}
+                             </span>
+                             <p className={cn("font-bold text-sm", otherAccountColors?.iconColor)}>
+                                {otherAccountName}
+                             </p>
+                           </div>
+                        ) : (
+                          <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm line-clamp-1">
+                            {tx.description}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {formatDateTime(tx.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <div className={cn(
+                        "font-bold text-sm whitespace-nowrap",
+                        showGreen ? "text-emerald-600" : "text-rose-600"
+                      )}>
+                        {showGreen ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </div>
+                      <div className={cn(
+                        "text-[11px] font-bold mt-0.5",
+                        account ? getAccountColor(account.name).text : "text-slate-500 dark:text-slate-400"
+                      )}>
+                         {formatCurrency(tx.balanceAfter)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detalle extra si NO es transferencia bancaria (porque ya mostramos el nombre arriba) o si tiene nota */}
+                  {(!otherAccountName || tx.notes) && (
+                     <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-50 dark:border-slate-800 pt-2 mt-2">
+                        {!otherAccountName && (
+                          <p className="italic">{tx.description}</p>
+                        )}
+                        {tx.notes && (
+                           <p className="text-slate-400 dark:text-slate-500">Nota: {tx.notes}</p>
+                        )}
+                     </div>
+                  )}
+
+                  <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400 pt-1">
+                     {tx.reference_number && (
+                        <div className="flex justify-between">
+                          <span>Ref:</span>
+                          <span className="font-mono">{tx.reference_number}</span>
+                        </div>
+                     )}
+                     
+                     <div className="flex justify-between items-center text-slate-400 dark:text-slate-500 mt-1">
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          <span>{tx.created_by_name || 'Sistema'}</span>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
