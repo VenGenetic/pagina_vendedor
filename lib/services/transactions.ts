@@ -77,9 +77,12 @@ export async function processSale(input: CreateSaleInput) {
     // Call RPC
     const { data, error } = await supabase.rpc('process_sale_transaction', {
       p_sale_number: generateSaleNumber(),
+      p_customer_id_number: input.cedula_cliente || null,
       p_customer_name: input.nombre_cliente,
-      p_customer_phone: input.telefono_cliente,
-      p_customer_email: input.email_cliente,
+      p_customer_phone: input.telefono_cliente || null,
+      p_customer_email: input.email_cliente || null,
+      p_customer_city: input.ciudad_cliente || null,
+      p_customer_address: input.direccion_cliente || null,
       p_subtotal: subtotal,
       p_tax: tax,
       p_discount: discount,

@@ -27,6 +27,26 @@ CREATE TABLE accounts (
 CREATE INDEX idx_accounts_active ON accounts(is_active) WHERE is_active = true;
 
 -- ============================================
+-- CUSTOMERS TABLE
+-- Master list of customers
+-- ============================================
+CREATE TABLE customers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  identity_document VARCHAR(50) UNIQUE NOT NULL, -- Cedula / RUC / Pasaporte
+  name VARCHAR(200) NOT NULL,
+  phone VARCHAR(50),
+  email VARCHAR(100),
+  city VARCHAR(100),
+  address TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_customers_identity ON customers(identity_document);
+CREATE INDEX idx_customers_name ON customers USING gin(to_tsvector('spanish', name));
+
+-- ============================================
 -- PRODUCTS TABLE
 -- Master inventory list for spare parts
 -- ============================================
@@ -157,6 +177,11 @@ CREATE TABLE sales (
   
   -- Sale information
   sale_number VARCHAR(50) UNIQUE NOT NULL,
+  
+  -- Customer Link (Optional FK)
+  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  
+  -- Snapshot of customer data (for history)
   customer_name VARCHAR(200),
   customer_phone VARCHAR(20),
   customer_email VARCHAR(100),
@@ -184,6 +209,7 @@ CREATE INDEX idx_sales_number ON sales(sale_number);
 CREATE INDEX idx_sales_date ON sales(sale_date DESC);
 CREATE INDEX idx_sales_account ON sales(account_id);
 CREATE INDEX idx_sales_status ON sales(payment_status);
+CREATE INDEX idx_sales_customer_id ON sales(customer_id);
 
 -- ============================================
 -- SALE_ITEMS TABLE
@@ -229,6 +255,9 @@ CREATE TRIGGER update_accounts_updated_at BEFORE UPDATE ON accounts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to update product stock based on inventory movements
@@ -326,70 +355,3 @@ FROM transactions t
 JOIN accounts a ON t.account_id = a.id
 ORDER BY t.transaction_date DESC
 LIMIT 50;
-
--- ============================================
--- SEED DATA (Optional - for development)
--- ============================================
-
--- Insert default accounts
-INSERT INTO accounts (name, type, balance) VALUES
-  ('Caja Principal', 'CASH', 1000.00),
-  ('Cuenta Bancaria', 'BANK', 5000.00),
-  ('Billetera Digital', 'DIGITAL_WALLET', 500.00);
-
--- Insert sample products
-INSERT INTO products (sku, name, description, category, brand, cost_price, selling_price, current_stock, min_stock_level) VALUES
-  ('BRK-001', 'Pastillas de Freno Delanteras', 'Pastillas de freno para moto deportiva', 'Frenos', 'Brembo', 25.00, 45.00, 15, 5),
-  ('CHN-001', 'Cadena de Transmisión 520', 'Cadena reforzada 520 x 120 eslabones', 'Transmisión', 'DID', 35.00, 65.00, 8, 3),
-  ('OIL-001', 'Aceite Motor 10W-40', 'Aceite sintético para motor 4 tiempos - 1L', 'Lubricantes', 'Motul', 12.00, 22.00, 30, 10),
-  ('FLT-001', 'Filtro de Aceite', 'Filtro de aceite universal', 'Filtros', 'HiFlo', 5.00, 12.00, 25, 8),
-  ('SPK-001', 'Bujía NGK Iridium', 'Bujía de iridio de alto rendimiento', 'Sistema Eléctrico', 'NGK', 8.00, 18.00, 20, 5);
-
--- ============================================
--- ROW LEVEL SECURITY (RLS) Setup
--- ============================================
--- Uncomment and configure these if using Supabase Auth
-
--- ALTER TABLE accounts ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE products ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE inventory_movements ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE sale_items ENABLE ROW LEVEL SECURITY;
-
--- Example policy (allow authenticated users to read/write)
--- CREATE POLICY "Allow authenticated users full access to accounts" 
---   ON accounts FOR ALL 
---   TO authenticated 
---   USING (true) 
---   WITH CHECK (true);
-
--- Repeat for other tables as needed...
-
--- ============================================
--- USEFUL QUERIES FOR BUSINESS INSIGHTS
--- ============================================
-
--- Total inventory value by cost
--- SELECT SUM(current_stock * cost_price) AS total_inventory_cost FROM products WHERE is_active = true;
-
--- Total inventory value by selling price
--- SELECT SUM(current_stock * selling_price) AS total_inventory_selling FROM products WHERE is_active = true;
-
--- Total balance across all accounts
--- SELECT SUM(balance) AS total_balance FROM accounts WHERE is_active = true;
-
--- Sales report by date range
--- SELECT DATE(sale_date) AS date, COUNT(*) AS sales_count, SUM(total) AS total_sales
--- FROM sales
--- WHERE sale_date >= '2026-01-01' AND sale_date < '2026-02-01'
--- GROUP BY DATE(sale_date)
--- ORDER BY date DESC;
-
--- Top selling products
--- SELECT p.name, SUM(si.quantity) AS total_sold, SUM(si.subtotal) AS revenue
--- FROM sale_items si
--- JOIN products p ON si.product_id = p.id
--- GROUP BY p.id, p.name
--- ORDER BY total_sold DESC
--- LIMIT 10;

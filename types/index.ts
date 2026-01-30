@@ -42,8 +42,11 @@ export interface EntradaArticuloVenta {
 
 export interface EntradaCrearVenta {
   nombre_cliente?: string;
+  cedula_cliente?: string;
   telefono_cliente?: string;
   email_cliente?: string;
+  ciudad_cliente?: string;
+  direccion_cliente?: string;
   id_cuenta: string;
   metodo_pago: 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'CHEQUE' | 'OTRO';
   articulos: EntradaArticuloVenta[];
@@ -146,3 +149,15 @@ export type CreateExpenseInput = EntradaCrearGasto;
 export type CreateTransferInput = EntradaCrearTransferencia;
 export type DashboardStats = EstadisticasPanel;
 export type ProductWithStock = ProductoConStock;
+
+export interface Cliente {
+  id: string;
+  identity_document: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  city?: string;
+  address?: string;
+  created_at: string;
+}
+export type Customer = Cliente;

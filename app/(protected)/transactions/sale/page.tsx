@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useProducts, useCreateSale, useAccounts, useRecentSales, useDeleteSale } from '@/hooks/use-queries';
+import { useProducts, useCreateSale, useAccounts, useRecentSales, useDeleteSale, useCustomerByCedula } from '@/hooks/use-queries';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Plus, Minus, Check, Loader2, Clock, User, Users, Trash2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Check, Loader2, Clock, User, Users, Trash2, AlertCircle, Search, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Producto } from '@/types';
+import { Producto, Customer } from '@/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,10 +43,43 @@ export default function NewSalePage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   // Customer State
+  // Customer State
   const [clientType, setClientType] = useState<'CONSUMER' | 'CLIENT'>('CONSUMER');
+
+  // New Customer Fields
+  const [customerIdNumber, setCustomerIdNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
   const [customerCity, setCustomerCity] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+
+  // Search & Retract Logic
+  const debouncedCedula = useDebounce(customerIdNumber, 500);
+  const { data: foundCustomer, isLoading: searchingCustomer } = useCustomerByCedula(debouncedCedula);
+
+  const [isFormExpanded, setIsFormExpanded] = useState(true);
+  const [isCustomerFound, setIsCustomerFound] = useState(false);
+
+  // Effect: Handle Customer Search Result
+  useEffect(() => {
+    if (foundCustomer) {
+      setIsCustomerFound(true);
+      setCustomerName(foundCustomer.name);
+      setCustomerPhone(foundCustomer.phone || '');
+      setCustomerEmail(foundCustomer.email || '');
+      setCustomerCity(foundCustomer.city || '');
+      setCustomerAddress(foundCustomer.address || '');
+      setIsFormExpanded(false); // Retract on find
+    } else {
+      if (debouncedCedula.length >= 10 && !searchingCustomer) {
+        // Optionally reset fields if not found, or keep them if user is typing
+        setIsCustomerFound(false);
+        setIsFormExpanded(true); // Expand if not found so user can type
+      }
+    }
+  }, [foundCustomer, debouncedCedula, searchingCustomer]);
+
 
   const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [shippingAccount, setShippingAccount] = useState<string>('');
@@ -135,9 +168,24 @@ export default function NewSalePage() {
       return;
     }
 
-    if (clientType === 'CLIENT' && !customerName) {
-      alert('Por favor ingresa el nombre del cliente');
-      return;
+    if (clientType === 'CLIENT') {
+      if (!customerIdNumber) {
+        alert('Por favor ingresa la Cédula/RUC del cliente');
+        return;
+      }
+      if (!customerName) {
+        alert('Por favor ingresa el nombre del cliente');
+        return;
+      }
+      if (!customerPhone) {
+        alert('Por favor ingresa el teléfono del cliente');
+        return;
+      }
+      // City is mandatory per requirements
+      if (!customerCity) {
+        alert('Por favor ingresa la ciudad del cliente');
+        return;
+      }
     }
 
     if (shippingCost > 0 && !shippingAccount) {
@@ -145,16 +193,24 @@ export default function NewSalePage() {
       return;
     }
 
-    // Construct notes with City if provided
-    let finalNotes = userNote; // Start with user note
-    if (clientType === 'CLIENT' && customerCity) {
-      finalNotes = finalNotes ? `${finalNotes} | Ciudad: ${customerCity}` : `Ciudad: ${customerCity}`;
+    // Construct notes with City if provided (Legacy support or just additional info)
+    // We now send dedicated fields, but keeping it in notes doesn't hurt.
+    let finalNotes = userNote;
+    if (clientType === 'CLIENT') {
+      // Optional: Add some info to notes just in case
     }
 
     const saleData = {
       id_cuenta: selectedAccount,
+
+      // Customer Data
       nombre_cliente: clientType === 'CLIENT' ? customerName : 'Consumidor Final',
+      cedula_cliente: clientType === 'CLIENT' ? customerIdNumber : undefined,
       telefono_cliente: clientType === 'CLIENT' ? customerPhone : undefined,
+      email_cliente: clientType === 'CLIENT' ? customerEmail : undefined,
+      ciudad_cliente: clientType === 'CLIENT' ? customerCity : undefined,
+      direccion_cliente: clientType === 'CLIENT' ? customerAddress : undefined,
+
       metodo_pago: 'EFECTIVO' as const, // Default, se podría agregar selector
       articulos: items.map((item) => ({
         id_producto: item.productId,
@@ -223,37 +279,111 @@ export default function NewSalePage() {
 
             {/* Dynamic Customer Fields */}
             {clientType === 'CLIENT' && (
-              <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+
+                {/* Search / Identity Field */}
                 <div>
-                  <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Nombre</label>
-                  <Input
-                    placeholder="Juan Pérez"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100"
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Teléfono</label>
+                  <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block flex items-center justify-between">
+                    <span>Cédula / RUC *</span>
+                    {searchingCustomer && <span className="text-blue-500">Buscando...</span>}
+                  </label>
+                  <div className="relative">
                     <Input
-                      placeholder="099..."
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100"
+                      placeholder="Ingrese Cédula para buscar..."
+                      value={customerIdNumber}
+                      onChange={(e) => setCustomerIdNumber(e.target.value)}
+                      className={`w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100 pl-10 h-11 text-base ${isCustomerFound ? 'border-green-500 ring-1 ring-green-500/20' : ''
+                        }`}
+                      autoFocus
                     />
-                  </div>
-                  <div>
-                    <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Ciudad</label>
-                    <Input
-                      placeholder="Quito..."
-                      value={customerCity}
-                      onChange={(e) => setCustomerCity(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100"
-                    />
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
+                    {isCustomerFound && (
+                      <Check className="w-4 h-4 text-green-500 absolute right-3 top-3.5" />
+                    )}
                   </div>
                 </div>
+
+                {/* Customer Found Alert / Header */}
+                {isCustomerFound && !isFormExpanded && (
+                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 flex justify-between items-center">
+                    <div>
+                      <p className="text-sm font-bold text-green-700 dark:text-green-400">{customerName}</p>
+                      <p className="text-xs text-green-600 dark:text-green-500">Cliente registrado</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsFormExpanded(true)}
+                      className="p-2 hover:bg-green-100 dark:hover:bg-green-900/40 rounded-full transition-colors text-green-700 dark:text-green-400"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Detailed Fields (Expandable) */}
+                {(isFormExpanded || !isCustomerFound) && (
+                  <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800/50">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Datos del Cliente</label>
+                      {isCustomerFound && (
+                        <button type="button" onClick={() => setIsFormExpanded(false)} className="text-xs text-blue-500 flex items-center gap-1">
+                          Ocultar <ChevronUp className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Nombre *</label>
+                      <Input
+                        placeholder="Nombre Completo"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100 text-base"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Teléfono *</label>
+                        <Input
+                          placeholder="099..."
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100 text-base"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Ciudad *</label>
+                        <Input
+                          placeholder="Quito..."
+                          value={customerCity}
+                          onChange={(e) => setCustomerCity(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100 text-base"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Dirección (Opcional)</label>
+                      <Input
+                        placeholder="Calle Principal y Secundaria..."
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100 text-base"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1 block">Email (Opcional)</label>
+                      <Input
+                        type="email"
+                        placeholder="cliente@email.com"
+                        value={customerEmail}
+                        onChange={(e) => setCustomerEmail(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 dark:text-slate-100 text-base"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

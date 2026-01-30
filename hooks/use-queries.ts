@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
 import { processSale, processPurchase, createExpense, createIncome } from '@/lib/services/transactions';
-import type { CreateSaleInput, DashboardStats, ProductoStockBajo, Producto, Cuenta, ActividadReciente, EntradaCrearIngreso } from '@/types';
+import type { CreateSaleInput, DashboardStats, ProductoStockBajo, Producto, Cuenta, ActividadReciente, EntradaCrearIngreso, Customer } from '@/types';
 
 // Query keys
 export const queryKeys = {
@@ -519,5 +519,27 @@ export function useRecentExpenses() {
       if (error) throw error;
       return data;
     }
+  });
+}
+
+export function useCustomerByCedula(cedula: string) {
+  return useQuery({
+    queryKey: ['customer', cedula],
+    queryFn: async (): Promise<Customer | null> => {
+      // Wait for at least 3 chars
+      if (!cedula || cedula.length < 3) return null;
+
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('identity_document', cedula)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as Customer;
+    },
+    enabled: !!cedula && cedula.length >= 3,
+    // retry: false,
+    staleTime: 1000 * 60 * 5
   });
 }

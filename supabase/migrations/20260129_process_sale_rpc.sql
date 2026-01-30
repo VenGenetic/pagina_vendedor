@@ -1,16 +1,20 @@
 -- Function: process_sale_transaction
 -- Description: Handles the complete sale process atomically.
 -- 1. Validates stock for all items
--- 2. Creates sale record
--- 3. Creates sale items and inventory movements
--- 4. Creates income transaction
--- 5. Handles optional shipping expense
+-- 2. Manages Customer Upsert (Create or Update)
+-- 3. Creates sale record with customer link
+-- 4. Creates sale items and inventory movements
+-- 5. Creates income transaction
+-- 6. Handles optional shipping expense
 
 CREATE OR REPLACE FUNCTION process_sale_transaction(
   p_sale_number TEXT,
+  p_customer_id_number TEXT, -- Cédula/RUC
   p_customer_name TEXT,
   p_customer_phone TEXT,
   p_customer_email TEXT,
+  p_customer_city TEXT,
+  p_customer_address TEXT,
   p_subtotal DECIMAL,
   p_tax DECIMAL,
   p_discount DECIMAL,
@@ -31,6 +35,7 @@ DECLARE
   v_sale_id UUID;
   v_transaction_id UUID;
   v_shipping_tx_id UUID;
+  v_customer_id UUID;
   v_item JSONB;
   v_product_id UUID;
   v_quantity INTEGER;
@@ -45,8 +50,6 @@ DECLARE
   v_payment_method_enum VARCHAR;
 BEGIN
   -- 1. Map payment method to enum if needed (or ensure frontend sends correct values)
-  -- The table check constraint allows: 'CASH', 'CARD', 'TRANSFER', 'CHECK', 'OTHER'
-  -- We assume p_payment_method is already correct or mapped.
   v_payment_method_enum := p_payment_method;
 
   -- 2. Validate Stock for ALL items first
@@ -66,20 +69,59 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 3. Create Sale Record
+  -- 3. Customer Logic (Upsert)
+  IF p_customer_id_number IS NOT NULL AND p_customer_id_number != '' THEN
+    -- Check if customer exists
+    SELECT id INTO v_customer_id FROM customers WHERE identity_document = p_customer_id_number;
+
+    IF v_customer_id IS NOT NULL THEN
+      -- Update existing customer with new info if provided (and not empty)
+      UPDATE customers SET
+        name = COALESCE(NULLIF(p_customer_name, ''), name),
+        phone = COALESCE(NULLIF(p_customer_phone, ''), phone),
+        city = COALESCE(NULLIF(p_customer_city, ''), city),
+        address = COALESCE(NULLIF(p_customer_address, ''), address),
+        email = COALESCE(NULLIF(p_customer_email, ''), email),
+        updated_at = NOW()
+      WHERE id = v_customer_id;
+    ELSE
+      -- Create new customer
+      INSERT INTO customers (
+        identity_document, name, phone, email, city, address, created_at, updated_at
+      ) VALUES (
+        p_customer_id_number, 
+        COALESCE(p_customer_name, 'Cliente Sin Nombre'), 
+        p_customer_phone, 
+        p_customer_email, 
+        p_customer_city, 
+        p_customer_address,
+        NOW(), NOW()
+      ) RETURNING id INTO v_customer_id;
+    END IF;
+  END IF;
+
+  -- 4. Create Sale Record
   INSERT INTO sales (
-    sale_number, customer_name, customer_phone, customer_email,
+    sale_number, 
+    customer_id, -- Link to Customers Table
+    customer_name, -- Historical Snapshot
+    customer_phone, 
+    customer_email,
     subtotal, tax, discount, total, 
     account_id, payment_status, notes, 
     created_at
   ) VALUES (
-    p_sale_number, p_customer_name, p_customer_phone, p_customer_email,
+    p_sale_number, 
+    v_customer_id,
+    p_customer_name, 
+    p_customer_phone, 
+    p_customer_email,
     p_subtotal, p_tax, p_discount, p_total,
     p_account_id, 'PAID', p_notes,
     NOW()
   ) RETURNING id INTO v_sale_id;
 
-  -- 4. Process Items (Create Sale Items & Inventory Movements)
+  -- 5. Process Items (Create Sale Items & Inventory Movements)
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
     v_product_id := (v_item->>'product_id')::UUID;
@@ -110,10 +152,9 @@ BEGIN
     );
 
     -- Trigger 'trigger_update_product_stock' will automatically update products.current_stock
-    -- because we inserted into inventory_movements.
   END LOOP;
 
-  -- 5. Create Income Transaction
+  -- 6. Create Income Transaction
   INSERT INTO transactions (
     type, amount, description, 
     account_id, payment_method, reference_number,
@@ -124,10 +165,10 @@ BEGIN
     p_notes, NOW(), p_user_id
   ) RETURNING id INTO v_transaction_id;
 
-  -- 6. Create Shipping Expense (Optional)
+  -- 7. Create Shipping Expense (Optional)
   IF p_shipping_cost > 0 AND p_shipping_account_id IS NOT NULL THEN
     INSERT INTO transactions (
-      type, amount, description,
+      type, amount, description, 
       account_id, payment_method, reference_number,
       notes, created_at, created_by
     ) VALUES (
@@ -141,7 +182,8 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true,
     'sale_id', v_sale_id,
-    'transaction_id', v_transaction_id
+    'transaction_id', v_transaction_id,
+    'customer_id', v_customer_id
   );
 
 EXCEPTION WHEN OTHERS THEN
