@@ -55,12 +55,12 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 transition-colors">
-      
+
       {/* Transfer Modal */}
       {accounts && accounts.length > 0 && (
-        <TransferModal 
-          isOpen={showTransfer} 
-          onClose={() => setShowTransfer(false)} 
+        <TransferModal
+          isOpen={showTransfer}
+          onClose={() => setShowTransfer(false)}
           sourceAccount={accounts[0]} // Default fallback
           accounts={accounts}
         />
@@ -101,22 +101,22 @@ export default function Dashboard() {
             {cuentasMostrar.map((acc, i) => {
               if (!acc.id) return null; // Skip if account not found
               const colors = getAccountColor(acc.label);
-              
+
               return (
-                <Link 
+                <Link
                   href={`/accounts/${acc.id}`}
-                  key={i} 
+                  key={i}
                   className={cn(
                     "rounded-xl p-2.5 text-center transition-all active:scale-95 flex flex-col justify-center shadow-lg border border-white/10 dark:border-white/5",
-                    colors.bg, 
+                    colors.bg,
                     colors.text,
                     colors.hover
                   )}
                 >
-                    <p className={cn("text-[10px] uppercase font-bold tracking-tight mb-1 truncate opacity-90")}>{acc.label}</p>
-                    <p className="text-sm font-bold truncate">
-                      {formatCurrency(acc.balance || 0)}
-                    </p>
+                  <p className={cn("text-[10px] uppercase font-bold tracking-tight mb-1 truncate opacity-90")}>{acc.label}</p>
+                  <p className="text-sm font-bold truncate">
+                    {formatCurrency(acc.balance || 0)}
+                  </p>
                 </Link>
               );
             })}
@@ -127,18 +127,18 @@ export default function Dashboard() {
         <div className="grid grid-cols-4 gap-3 md:col-span-7 lg:col-span-8">
           {/* VENDER - Prominente en 2 columnas */}
           <Link href="/transactions/sale" className="col-span-4 md:col-span-2 bg-gradient-to-br from-emerald-600 to-emerald-700 dark:from-emerald-700 dark:to-emerald-800 hover:from-emerald-700 hover:to-emerald-800 dark:hover:from-emerald-600 dark:hover:to-emerald-700 rounded-2xl p-5 flex items-center justify-center gap-4 shadow-lg shadow-emerald-200/50 dark:shadow-none transition-all active:scale-95 group">
-             <div className="p-3 bg-white/20 rounded-xl group-hover:scale-110 transition-transform">
-               <ShoppingCart className="h-7 w-7 text-white" />
-             </div>
-             <div>
-                <span className="block text-xl font-bold text-white tracking-tight">VENDER</span>
-                <span className="block text-sm text-emerald-100 font-medium">Nueva Venta</span>
-             </div>
+            <div className="p-3 bg-white/20 rounded-xl group-hover:scale-110 transition-transform">
+              <ShoppingCart className="h-7 w-7 text-white" />
+            </div>
+            <div>
+              <span className="block text-xl font-bold text-white tracking-tight">VENDER</span>
+              <span className="block text-sm text-emerald-100 font-medium">Nueva Venta</span>
+            </div>
           </Link>
 
           {/* SURTIR */}
           <Link href="/transactions/purchase" className="col-span-2 md:col-span-1">
-             <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-500 dark:hover:to-blue-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 hover:from-blue-600 hover:to-blue-700 dark:hover:from-blue-500 dark:hover:to-blue-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Package className="h-5 w-5 text-white" />
               </div>
@@ -148,7 +148,7 @@ export default function Dashboard() {
 
           {/* GASTO */}
           <Link href="/transactions/expense" className="col-span-2 md:col-span-1">
-             <div className="bg-gradient-to-br from-red-500 to-red-600 dark:from-red-600 dark:to-red-700 hover:from-red-600 hover:to-red-700 dark:hover:from-red-500 dark:hover:to-red-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
+            <div className="bg-gradient-to-br from-red-500 to-red-600 dark:from-red-600 dark:to-red-700 hover:from-red-600 hover:to-red-700 dark:hover:from-red-500 dark:hover:to-red-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <TrendingDown className="h-5 w-5 text-white" />
               </div>
@@ -158,7 +158,7 @@ export default function Dashboard() {
 
           {/* COMISIÓN */}
           <Link href="/transactions/income" className="col-span-2 md:col-span-1">
-             <div className="bg-gradient-to-br from-violet-500 to-violet-600 dark:from-violet-600 dark:to-violet-700 hover:from-violet-600 hover:to-violet-700 dark:hover:from-violet-500 dark:hover:to-violet-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
+            <div className="bg-gradient-to-br from-violet-500 to-violet-600 dark:from-violet-600 dark:to-violet-700 hover:from-violet-600 hover:to-violet-700 dark:hover:from-violet-500 dark:hover:to-violet-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Plus className="h-5 w-5 text-white" />
               </div>
@@ -168,10 +168,10 @@ export default function Dashboard() {
 
           {/* TRANSFERIR */}
           <div className="col-span-2 md:col-span-1">
-             <button 
-               onClick={() => setShowTransfer(true)}
-               className="w-full bg-gradient-to-br from-cyan-500 to-cyan-600 dark:from-cyan-600 dark:to-cyan-700 hover:from-cyan-600 hover:to-cyan-700 dark:hover:from-cyan-500 dark:hover:to-cyan-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95"
-              >
+            <button
+              onClick={() => setShowTransfer(true)}
+              className="w-full bg-gradient-to-br from-cyan-500 to-cyan-600 dark:from-cyan-600 dark:to-cyan-700 hover:from-cyan-600 hover:to-cyan-700 dark:hover:from-cyan-500 dark:hover:to-cyan-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95"
+            >
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <ArrowRightLeft className="h-5 w-5 text-white" />
               </div>
@@ -181,7 +181,7 @@ export default function Dashboard() {
 
           {/* INVENTARIO */}
           <Link href="/inventory" className="col-span-2 md:col-span-1">
-             <div className="bg-gradient-to-br from-slate-600 to-slate-700 dark:from-slate-700 dark:to-slate-800 hover:from-slate-700 hover:to-slate-800 dark:hover:from-slate-600 dark:hover:to-slate-700 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
+            <div className="bg-gradient-to-br from-slate-600 to-slate-700 dark:from-slate-700 dark:to-slate-800 hover:from-slate-700 hover:to-slate-800 dark:hover:from-slate-600 dark:hover:to-slate-700 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Package className="h-5 w-5 text-white" />
               </div>
@@ -191,11 +191,21 @@ export default function Dashboard() {
 
           {/* COMISIONES JOHN */}
           <Link href="/transactions/john-commissions" className="col-span-2 md:col-span-1">
-             <div className="bg-gradient-to-br from-amber-500 to-amber-600 dark:from-amber-600 dark:to-amber-700 hover:from-amber-600 hover:to-amber-700 dark:hover:from-amber-500 dark:hover:to-amber-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 dark:from-amber-600 dark:to-amber-700 hover:from-amber-600 hover:to-amber-700 dark:hover:from-amber-500 dark:hover:to-amber-600 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <DollarSign className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xs font-bold text-white uppercase tracking-tight text-center leading-tight">Comisiones<br/>John</span>
+              <span className="text-xs font-bold text-white uppercase tracking-tight text-center leading-tight">Comisiones<br />John</span>
+            </div>
+          </Link>
+
+          {/* SMART RESTOCK */}
+          <Link href="/inventory/smart-restock" className="col-span-2 md:col-span-1">
+            <div className="bg-gradient-to-br from-purple-600 to-purple-700 dark:from-purple-700 dark:to-purple-800 hover:from-purple-700 hover:to-purple-800 dark:hover:from-purple-600 dark:hover:to-purple-700 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
+              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                <TrendingUp className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xs font-bold text-white uppercase tracking-tight text-center leading-tight">Smart<br />Restock</span>
             </div>
           </Link>
         </div>
@@ -247,16 +257,14 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        transaction.type === 'INCOME'
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${transaction.type === 'INCOME'
                           ? 'bg-emerald-100 dark:bg-emerald-900/30'
                           : 'bg-red-100 dark:bg-red-900/30'
-                      }`}
+                        }`}
                     >
                       {transaction.type === 'INCOME' ? (
-                        <TrendingUp className={`w-5 h-5 ${
-                          transaction.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                        }`} />
+                        <TrendingUp className={`w-5 h-5 ${transaction.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                          }`} />
                       ) : (
                         <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
                       )}
@@ -270,11 +278,10 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  <div className={`text-right font-bold text-sm ${
-                    transaction.type === 'INCOME'
+                  <div className={`text-right font-bold text-sm ${transaction.type === 'INCOME'
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-slate-800 dark:text-slate-100'
-                  }`}>
+                    }`}>
                     {transaction.type === 'INCOME' ? '+' : '-'}
                     {formatCurrency(transaction.amount)}
                   </div>

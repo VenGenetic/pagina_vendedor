@@ -2,306 +2,219 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ArrowLeft, Download, TrendingUp, Package, Calendar, DollarSign, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { SmartReplenishmentItem, ReplenishmentCalculation } from '@/types/replenishment';
 import { formatCurrency } from '@/lib/utils';
-
-interface RestockSuggestion {
-  product_id: string;
-  sku: string;
-  product_name: string;
-  category: string;
-  current_stock: number;
-  min_stock_level: number;
-  selling_price: number;
-  cost_price: number;
-  days_since_creation: number;
-  total_sold: number;
-  days_with_stock: number;
-  avg_daily_sales: number;
-  suggested_stock: number;
-  quantity_to_order: number;
-  estimated_cost: number;
-}
+import { Loader2, Download, AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react';
+import Papa from 'papaparse';
 
 export default function SmartRestockPage() {
-  const [suggestions, setSuggestions] = useState<RestockSuggestion[]>([]);
+  // const supabase = createClientComponentClient(); // Removed
   const [loading, setLoading] = useState(true);
-  const [daysCoverage, setDaysCoverage] = useState(30);
-  const [lookbackDays, setLookbackDays] = useState(365);
+  const [data, setData] = useState<ReplenishmentCalculation[]>([]);
 
-  const loadSuggestions = async () => {
-    setLoading(true);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
     try {
-      const { data, error } = await supabase.rpc('calculate_smart_restock', {
-        p_days_coverage: daysCoverage,
-        p_lookback_days: lookbackDays
-      } as any);
+      setLoading(true);
+      const { data: viewData, error } = await supabase
+        .from('view_smart_replenishment')
+        .select('*');
 
       if (error) throw error;
-      setSuggestions(data || []);
-    } catch (error) {
-      console.error('Error loading restock suggestions:', error);
-      alert('Error al cargar sugerencias de reabastecimiento');
+
+      // Apply Client-Side Logic (Capping & Status)
+      const calculatedData: ReplenishmentCalculation[] = (viewData as any[]).map((item: SmartReplenishmentItem) => {
+        // 1. Calculate Reorder Point
+        // Formula: (Velocity * LeadTime) + SafetyStock
+        // Lead Time defaults to 2 days for now (as per "weekend warrior" concern implying short cycles but reliability issues)
+        // Adjust Lead Time as needed.
+        const LEAD_TIME_DAYS = 2; // Can be a configurable setting later
+        const reorderPoint = (item.weighted_velocity * LEAD_TIME_DAYS) + item.dynamic_safety_stock;
+
+        // 2. Calculate Raw Need
+        // Target Level could be Reorder Point * 1.5? Or just Reorder Point?
+        // Let's assume Target Level is "Stock up to Reorder Point + 3 Days Sales"
+        // User Logic: "Final_Buy = MIN(Raw_Need, (20 - Current_Stock))"
+        // This implies MAX SHELF CAP is 20.
+        const MAX_SHELF_CAP = 20;
+
+        // Logical Target: We want to be at MAX_SHELF_CAP if velocity supports it, or Reorder Point?
+        // The user says: "Raw_Need (Target Level - Current Stock)"
+        // Let's define Target Level = MAX_SHELF_CAP for simplicity in this constrained model, 
+        // OR Dynamic Target = Reorder Point.
+        // Given the "Max 20" rule, let's treat 20 as the absolute ceiling.
+
+        // Let's use Reorder Point as the "Minimum we need to have". 
+        // If Current < Reorder Point, we need to buy.
+        // Buy target = MAX_SHELF_CAP (Fill the shelf).
+
+        let rawNeed = 0;
+        let status: 'CRITICAL' | 'REORDER' | 'OK' | 'OVERSTOCK' = 'OK';
+
+        // Critical: Stock is 0 or less than 1 day of sales
+        if (item.current_stock <= item.weighted_velocity) {
+          status = 'CRITICAL';
+        } else if (item.current_stock <= reorderPoint) {
+          status = 'REORDER';
+        } else if (item.current_stock > MAX_SHELF_CAP) {
+          status = 'OVERSTOCK';
+        }
+
+        // Logic for Buy Qty
+        if (status === 'CRITICAL' || status === 'REORDER') {
+          // We want to fill up to MAX_SHELF_CAP, but respecting the velocity? 
+          // User requirement: "Final_Buy = MIN(Raw_Need, (20 - Current_Stock))"
+          // where Raw_Need = "Target Level - Current Stock"
+
+          // If we assume Target Level is the Max Cap (20):
+          const targetLevel = MAX_SHELF_CAP; // Simple interpretation
+          const theoreticalNeed = targetLevel - item.current_stock;
+
+          // However, the rule "MIN(Raw_Need, (20 - current))" implies Raw_Need is something else.
+          // Maybe Raw_Need = Reorder Point + Fixed Reorder Qty?
+          // Let's interpret "Raw_Need" as "What we ideally want given velocity"
+          // Ideal Stock = Lead Time Demand + Safety Stock + Cycle Stock (e.g. 7 days supply)
+          const CYCLE_DAYS = 7;
+          const idealTarget = reorderPoint + (item.weighted_velocity * CYCLE_DAYS);
+
+          rawNeed = Math.max(0, idealTarget - item.current_stock);
+        }
+
+        // 3. Capping Logic
+        const spaceToCap = Math.max(0, MAX_SHELF_CAP - item.current_stock);
+        const finalBuy = Math.min(rawNeed, spaceToCap);
+
+        // Determine Status Label for UI
+        if (item.replenishment_status === 'DO_NOT_BUY') status = 'OVERSTOCK'; // Force status if metric says dead
+        if (item.replenishment_status === 'MANUAL_REVIEW_NEW') status = 'OK'; // Don't auto-reorder new stuff blindly? Or flag as Manual?
+
+        return {
+          ...item,
+          suggested_reorder_point: reorderPoint,
+          raw_need: rawNeed,
+          final_buy_qty: Math.ceil(finalBuy), // Integer units
+          uncapped_need: Math.ceil(rawNeed),
+          is_capped: rawNeed > spaceToCap,
+          status_label: status
+        };
+      });
+
+      // Sort by Status Priority: CRITICAL > REORDER > OVERSTOCK > OK
+      const statusPriority = { 'CRITICAL': 0, 'REORDER': 1, 'OK': 2, 'OVERSTOCK': 3 };
+      calculatedData.sort((a, b) => statusPriority[a.status_label] - statusPriority[b.status_label]);
+
+      setData(calculatedData);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadSuggestions();
-  }, []);
+  const downloadCSV = () => {
+    // Generate CSV data matches user requirement:
+    // Status | SKU | Name | Suggested Buy Qty | Uncapped Need
+    const csvData = data.map(item => ({
+      Status: item.status_label,
+      SKU: item.sku,
+      Name: item.name,
+      'Suggested Buy Qty': item.final_buy_qty,
+      'Uncapped Need': item.uncapped_need,
+      'Current Stock': item.current_stock,
+      'Weighted Velocity': item.weighted_velocity.toFixed(2),
+      'Logic Note': item.is_capped ? 'Capped by Max 20' : ''
+    }));
 
-  const exportToCSV = () => {
-    if (suggestions.length === 0) {
-      alert('No hay datos para exportar');
-      return;
-    }
-
-    // Group by category (using category as proxy for supplier)
-    const grouped = suggestions.reduce((acc, item) => {
-      const cat = item.category || 'Sin categoría';
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(item);
-      return acc;
-    }, {} as Record<string, RestockSuggestion[]>);
-
-    // Build CSV
-    let csv = 'Categoría/Proveedor,SKU,Producto,Stock Actual,Venta Diaria,Días Stock,Cantidad a Pedir,Costo Estimado\n';
-    
-    Object.entries(grouped).forEach(([category, items]) => {
-      items.forEach(item => {
-        csv += `"${category}","${item.sku}","${item.product_name}",${item.current_stock},${item.avg_daily_sales.toFixed(2)},${item.days_with_stock},${Math.ceil(item.quantity_to_order)},${item.estimated_cost.toFixed(2)}\n`;
-      });
-    });
-
-    // Download
-    const bom = '\uFEFF';
-    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const csvUser = Papa.unparse(csvData);
+    const blob = new Blob([csvUser], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const date = new Date().toISOString().split('T')[0];
-    link.setAttribute('download', `reabastecimiento_${date}.csv`);
+    link.setAttribute('download', `smart_replenishment_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const totalToOrder = suggestions.reduce((sum, s) => sum + s.quantity_to_order, 0);
-  const totalCost = suggestions.reduce((sum, s) => sum + s.estimated_cost, 0);
-  const newProducts = suggestions.filter(s => s.days_since_creation < 30).length;
+  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-blue-600" /></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-16">
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="container max-w-7xl flex h-16 items-center gap-4 px-4 mx-auto justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/inventory">
-              <button className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                <ArrowLeft className="h-5 w-5 text-slate-700 dark:text-slate-200" />
-              </button>
-            </Link>
-            <div>
-              <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-violet-600" />
-                Reabastecimiento Inteligente
-              </h1>
-              <p className="text-xs text-slate-500">Basado en venta diaria real (últimos {lookbackDays} días)</p>
-            </div>
-          </div>
-          <Button onClick={exportToCSV} variant="outline" size="sm" className="gap-2">
-            <Download className="h-4 w-4" />
-            Exportar CSV
-          </Button>
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Smart Replenishment</h1>
+          <p className="text-slate-500 dark:text-slate-400">Weighted velocity & dynamic reorder analysis</p>
         </div>
-      </header>
+        <button
+          onClick={downloadCSV}
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold shadow-sm transition-colors"
+        >
+          <Download className="w-5 h-5" />
+          Descargar CSV
+        </button>
+      </div>
 
-      <main className="container max-w-7xl px-4 py-8 mx-auto space-y-6">
-        {/* Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">Configuración</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="coverage" className="text-xs font-bold text-slate-500 uppercase">
-                  Días de Cobertura
-                </Label>
-                <Input
-                  id="coverage"
-                  type="number"
-                  min="7"
-                  max="180"
-                  value={daysCoverage}
-                  onChange={(e) => setDaysCoverage(parseInt(e.target.value) || 30)}
-                  className="mt-1"
-                />
-                <p className="text-xs text-slate-500 mt-1">Stock sugerido = Venta Diaria × {daysCoverage} días</p>
-              </div>
-              <div>
-                <Label htmlFor="lookback" className="text-xs font-bold text-slate-500 uppercase">
-                  Período de Análisis (días)
-                </Label>
-                <Input
-                  id="lookback"
-                  type="number"
-                  min="30"
-                  max="730"
-                  value={lookbackDays}
-                  onChange={(e) => setLookbackDays(parseInt(e.target.value) || 365)}
-                  className="mt-1"
-                />
-                <p className="text-xs text-slate-500 mt-1">Historial de ventas a considerar</p>
-              </div>
-              <div className="flex items-end">
-                <Button onClick={loadSuggestions} className="w-full bg-violet-600 hover:bg-violet-700" disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Recalcular
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-violet-100 dark:bg-violet-900/20 rounded-lg">
-                  <Package className="h-6 w-6 text-violet-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Productos a Pedir</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{suggestions.length}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                  <TrendingUp className="h-6 w-6 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Unidades Totales</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{Math.ceil(totalToOrder)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                  <DollarSign className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Costo Estimado</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{formatCurrency(totalCost)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-amber-100 dark:bg-amber-900/20 rounded-lg">
-                  <Calendar className="h-6 w-6 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Productos Nuevos</p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{newProducts}</p>
-                  <p className="text-xs text-slate-400">&lt; 30 días</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider">
+              <tr>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Product</th>
+                <th className="px-4 py-3 text-right">Stock</th>
+                <th className="px-4 py-3 text-right">Velocity</th>
+                <th className="px-4 py-3 text-right text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/10">Buy Qty</th>
+                <th className="px-4 py-3 text-right text-slate-400">Uncapped</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              {data.map((item) => (
+                <tr key={item.product_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${item.status_label === 'CRITICAL' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900' :
+                      item.status_label === 'REORDER' ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900' :
+                        item.status_label === 'OVERSTOCK' ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-900' :
+                          'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-900'
+                      }`}>
+                      {item.status_label === 'CRITICAL' && <XCircle className="w-3 h-3" />}
+                      {item.status_label === 'REORDER' && <AlertTriangle className="w-3 h-3" />}
+                      {item.status_label === 'OK' && <CheckCircle className="w-3 h-3" />}
+                      {item.status_label === 'OVERSTOCK' && <Info className="w-3 h-3" />}
+                      {item.status_label}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-slate-900 dark:text-slate-100">{item.name}</div>
+                    <div className="text-xs text-slate-500">{item.sku}</div>
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium">{item.current_stock}</td>
+                  <td className="px-4 py-3 text-right text-slate-500">{item.weighted_velocity.toFixed(2)}/day</td>
+                  <td className="px-4 py-3 text-right font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/10">
+                    {item.final_buy_qty}
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-400">
+                    {item.is_capped ? (
+                      <span className="text-amber-500 font-medium" title="Capped by Max 20 Rule">{item.uncapped_need}</span>
+                    ) : (
+                      <span>-</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {data.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                    No data available or view not created.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {/* Products Table */}
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
-          </div>
-        ) : suggestions.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Package className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">No hay productos que necesiten reabastecimiento</p>
-              <p className="text-sm text-slate-400">Todos los productos tienen stock suficiente</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Sugerencias de Compra
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 dark:border-slate-800">
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">SKU</th>
-                      <th className="text-left py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">Producto</th>
-                      <th className="text-center py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">Stock Actual</th>
-                      <th className="text-center py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">Venta/Día</th>
-                      <th className="text-center py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">Días Stock</th>
-                      <th className="text-center py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">Sugerido</th>
-                      <th className="text-center py-3 px-4 font-semibold text-violet-700 dark:text-violet-400">A Pedir</th>
-                      <th className="text-right py-3 px-4 font-semibold text-slate-700 dark:text-slate-300">Costo Est.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {suggestions.map((item) => (
-                      <tr
-                        key={item.product_id}
-                        className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
-                      >
-                        <td className="py-3 px-4 font-mono text-xs">{item.sku}</td>
-                        <td className="py-3 px-4">
-                          <div className="font-medium text-slate-900 dark:text-slate-100">{item.product_name}</div>
-                          <div className="text-xs text-slate-500">{item.category}</div>
-                          {item.days_since_creation < 30 && (
-                            <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded">
-                              Nuevo ({item.days_since_creation}d)
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className={`font-semibold ${item.current_stock < item.min_stock_level ? 'text-red-600' : 'text-slate-700 dark:text-slate-300'}`}>
-                            {item.current_stock}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono text-xs">{item.avg_daily_sales.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-center text-slate-600 dark:text-slate-400">{item.days_with_stock}</td>
-                        <td className="py-3 px-4 text-center font-semibold text-blue-600 dark:text-blue-400">
-                          {Math.ceil(item.suggested_stock)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="px-3 py-1 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 font-bold rounded">
-                            {Math.ceil(item.quantity_to_order)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-xs">{formatCurrency(item.estimated_cost)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </main>
+      </div>
     </div>
   );
 }
