@@ -2,6 +2,8 @@
 
 import { useSettings } from '@/hooks/use-settings';
 import { SETTINGS_KEYS, BusinessProfile, FinancialConfig, InventoryPrefs } from '@/lib/validators/settings';
+import { ResetSection } from './reset-section';
+
 import { Loader2, Store, DollarSign, Package, Save, CheckCircle2, AlertTriangle, ShieldCheck, LogOut } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cerrarSesionAdmin } from '@/lib/supabase/auth';
@@ -248,6 +250,10 @@ export default function SettingsPage() {
                             </Button>
                         </AccordionContent>
                     </AccordionItem>
+
+                    {/* 4. DANGER ZONE */}
+                    <ResetSection />
+
 
                 </Accordion>
 
