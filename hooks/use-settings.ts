@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
     SETTINGS_KEYS,
     DEFAULT_SETTINGS,
@@ -59,10 +60,10 @@ export function useSettings<T>(key: SettingsKey) {
             }
 
             // Parse JSONB value with Zod
-            const parsedValue = parseSetting<T>(key, data.value);
+            const parsedValue = parseSetting<T>(key, (data as any).value);
 
             return {
-                ...data,
+                ...(data as any),
                 value: parsedValue
             } as SystemSetting<T>;
         },
@@ -81,7 +82,7 @@ export function useSettings<T>(key: SettingsKey) {
                     table: 'system_settings',
                     filter: `key=eq.${key}`,
                 },
-                (payload) => {
+                (payload: RealtimePostgresChangesPayload<any>) => {
                     console.log(`Realtime update received for ${key}:`, payload);
                     // Invalidate cache to refetch latest version & value
                     queryClient.invalidateQueries({ queryKey: ['settings', key] });
@@ -108,7 +109,7 @@ export function useSettings<T>(key: SettingsKey) {
                 p_new_value: newValue,
                 p_expected_version: currentVersion,
                 p_user_id: user.id
-            });
+            } as any);
 
             if (error) throw error;
             return data;

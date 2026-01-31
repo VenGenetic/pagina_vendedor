@@ -293,6 +293,32 @@ export type Database = {
           inventory_movement_id?: string | null;
         };
       };
+      system_settings: {
+        Row: {
+          key: string;
+          value: any;
+          version: number;
+          updated_at: string;
+          updated_by: string | null;
+          description: string | null;
+        };
+        Insert: {
+          key: string;
+          value: any;
+          version?: number;
+          updated_at?: string;
+          updated_by?: string | null;
+          description?: string | null;
+        };
+        Update: {
+          key?: string;
+          value?: any;
+          version?: number;
+          updated_at?: string;
+          updated_by?: string | null;
+          description?: string | null;
+        };
+      };
     };
     Views: {
       low_stock_products: {
@@ -347,6 +373,15 @@ export type Database = {
           transaction_id: string;
           message: string;
         };
+      };
+      update_system_setting: {
+        Args: {
+          p_key: string;
+          p_new_value: any;
+          p_expected_version: number;
+          p_user_id: string;
+        };
+        Returns: any;
       };
     };
     Enums: {};
