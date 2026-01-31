@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useProducts, useCreateSale, useAccounts, useRecentSales, useDeleteSale, useCustomerByCedula } from '@/hooks/use-queries';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Plus, Minus, Check, Loader2, Clock, User, Users, Trash2, AlertCircle, Search, ChevronDown, ChevronUp, Edit2 } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Check, Loader2, Clock, User, Users, Trash2, AlertCircle, Search, ChevronDown, ChevronUp, Edit2, Package, MapPin, FileText } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Producto, Customer } from '@/types';
+import { useSettings } from '@/hooks/use-settings';
+import { SETTINGS_KEYS, FinancialConfig } from '@/lib/validators/settings';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,10 +42,24 @@ export default function NewSalePage() {
   const { data: recentSales, isLoading: loadingHistory } = useRecentSales();
   const { mutate: deleteSale, isPending: isDeleting } = useDeleteSale();
 
+  // Settings
+  const { settings: financeSettings } = useSettings<FinancialConfig>(SETTINGS_KEYS.FINANCE);
+
+  // Local state
   const [items, setItems] = useState<SaleItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'CHEQUE' | 'OTRO'>('EFECTIVO');
+  const [taxRate, setTaxRate] = useState(0.15); // Fallback init
 
-  // Customer State
+  // Sync tax rate when settings load
+  useEffect(() => {
+    if (financeSettings && financeSettings.tax_enabled) {
+      setTaxRate(financeSettings.tax_rate);
+    } else {
+      setTaxRate(0);
+    }
+  }, [financeSettings]);
+
   // Customer State
   const [clientType, setClientType] = useState<'CONSUMER' | 'CLIENT'>('CONSUMER');
 
