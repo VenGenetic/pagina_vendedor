@@ -536,7 +536,7 @@ export function useCustomerByCedula(cedula: string) {
         .maybeSingle();
 
       if (error) throw error;
-      return data as Customer;
+      return data as Customer | null;
     },
     enabled: !!cedula && cedula.length >= 3,
     // retry: false,
