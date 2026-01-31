@@ -1,67 +1,18 @@
--- SCRIPT COMPLETO Y DEFINITIVO - MÓDULO DE CLIENTES
--- EJECUTAR TODO ESTE ARCHIVO EN SUPABASE SQL EDITOR
--- Es seguro ejecutarlo múltiples veces (Idempotente)
-
--- ==========================================
--- 1. CREAR TABLA DE CLIENTES (Si no existe)
--- ==========================================
-CREATE TABLE IF NOT EXISTS customers (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  identity_document VARCHAR(50) UNIQUE NOT NULL, -- Cédula / RUC / Pasaporte
-  name VARCHAR(200) NOT NULL,
-  phone VARCHAR(50),
-  email VARCHAR(100),
-  city VARCHAR(100),
-  address TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Indices para búsqueda rápida
-CREATE INDEX IF NOT EXISTS idx_customers_identity ON customers(identity_document);
-CREATE INDEX IF NOT EXISTS idx_customers_name ON customers USING gin(to_tsvector('spanish', name));
-
--- Trigger para updated_at
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS update_customers_updated_at ON customers;
-CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON customers
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-
--- ==========================================
--- 2. ACTUALIZAR TABLA DE VENTAS (SALES)
--- ==========================================
--- 2.1 Vincular con Cliente
-ALTER TABLE sales 
-ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS idx_sales_customer_id ON sales(customer_id);
-
--- 2.2 Agrega columnas "Snapshot" (Para historial fidedigno)
+-- Add snapshot columns to sales table
 ALTER TABLE sales
 ADD COLUMN IF NOT EXISTS customer_document VARCHAR(50),
 ADD COLUMN IF NOT EXISTS customer_city VARCHAR(100),
 ADD COLUMN IF NOT EXISTS customer_address TEXT;
 
-
--- ==========================================
--- 3. LOGICA DE TRANSACCIÓN (RPC)
--- ==========================================
+-- Update the RPC function to insert these values
 CREATE OR REPLACE FUNCTION process_sale_transaction(
   p_sale_number TEXT,
-  p_customer_id_number TEXT, -- Cédula/RUC
+  p_customer_id_number TEXT,
   p_customer_name TEXT,
   p_customer_phone TEXT,
   p_customer_email TEXT,
-  p_customer_city TEXT,     -- Nuevo
-  p_customer_address TEXT,  -- Nuevo
+  p_customer_city TEXT,
+  p_customer_address TEXT,
   p_subtotal DECIMAL,
   p_tax DECIMAL,
   p_discount DECIMAL,
@@ -98,13 +49,12 @@ DECLARE
 BEGIN
   v_payment_method_enum := p_payment_method;
 
-  -- 1. Validar Stock
+  -- Validate Stock
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
     v_product_id := (v_item->>'product_id')::UUID;
     v_quantity := (v_item->>'quantity')::INTEGER;
 
-    -- Bloquear fila para evitar condiciones de carrera
     SELECT current_stock, name INTO v_current_stock, v_product_name
     FROM products
     WHERE id = v_product_id
@@ -115,12 +65,11 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 2. Lógica de Cliente (Upsert: Crear o Actualizar)
+  -- Customer Upsert Logic
   IF p_customer_id_number IS NOT NULL AND p_customer_id_number != '' THEN
     SELECT id INTO v_customer_id FROM customers WHERE identity_document = p_customer_id_number;
 
     IF v_customer_id IS NOT NULL THEN
-      -- Cliente existe: Actualizamos sus datos principales
       UPDATE customers SET
         name = COALESCE(NULLIF(p_customer_name, ''), name),
         phone = COALESCE(NULLIF(p_customer_phone, ''), phone),
@@ -130,7 +79,6 @@ BEGIN
         updated_at = NOW()
       WHERE id = v_customer_id;
     ELSE
-      -- Cliente nuevo: Lo creamos
       INSERT INTO customers (
         identity_document, name, phone, email, city, address, created_at, updated_at
       ) VALUES (
@@ -145,22 +93,22 @@ BEGIN
     END IF;
   END IF;
 
-  -- 3. Crear Registro de Venta
+  -- Create Sale Record with SNAPSHOTS
   INSERT INTO sales (
     sale_number, customer_id, 
     customer_name, customer_phone, customer_email,
-    customer_document, customer_city, customer_address, -- Guardamos Snapshot
+    customer_document, customer_city, customer_address, -- New Columns
     subtotal, tax, discount, total, 
     account_id, payment_status, notes, created_at
   ) VALUES (
     p_sale_number, v_customer_id, 
     p_customer_name, p_customer_phone, p_customer_email,
-    p_customer_id_number, p_customer_city, p_customer_address,
+    p_customer_id_number, p_customer_city, p_customer_address, -- Values
     p_subtotal, p_tax, p_discount, p_total,
     p_account_id, 'PAID', p_notes, NOW()
   ) RETURNING id INTO v_sale_id;
 
-  -- 4. Procesar Items (Movimientos de Inventario)
+  -- Process Items
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
     v_product_id := (v_item->>'product_id')::UUID;
@@ -172,7 +120,6 @@ BEGIN
     v_item_subtotal := (v_quantity * v_price) - v_item_discount;
     v_item_cost_total := v_quantity * v_cost_unit;
 
-    -- Movimiento de Inventario
     INSERT INTO inventory_movements (
       product_id, type, quantity_change, unit_price, total_value,
       reason, notes, created_at, created_by
@@ -181,7 +128,6 @@ BEGIN
       'SALE', 'Venta ' || p_sale_number, NOW(), p_user_id
     ) RETURNING id INTO v_movement_id;
 
-    -- Item de Venta
     INSERT INTO sale_items (
       sale_id, product_id, quantity, unit_price, discount,
       subtotal, inventory_movement_id
@@ -191,7 +137,7 @@ BEGIN
     );
   END LOOP;
 
-  -- 5. Crear Transacción de Ingreso (Caja/Banco)
+  -- Create Income Transaction
   INSERT INTO transactions (
     type, amount, description, account_id, payment_method, reference_number, notes, created_at, created_by
   ) VALUES (
@@ -199,7 +145,7 @@ BEGIN
     p_account_id, v_payment_method_enum, p_sale_number, p_notes, NOW(), p_user_id
   ) RETURNING id INTO v_transaction_id;
 
-  -- 6. Crear Gasto de Envío (Opcional)
+  -- Create Shipping Expense
   IF p_shipping_cost > 0 AND p_shipping_account_id IS NOT NULL THEN
     INSERT INTO transactions (
       type, amount, description, account_id, payment_method, reference_number, notes, created_at, created_by

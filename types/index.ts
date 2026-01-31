@@ -17,7 +17,11 @@ export type MovimientoInventario = Database['public']['Tables']['inventory_movem
 export type MovimientoInventarioInsertar = Database['public']['Tables']['inventory_movements']['Insert'];
 export type MovimientoInventarioActualizar = Database['public']['Tables']['inventory_movements']['Update'];
 
-export type Venta = Database['public']['Tables']['sales']['Row'];
+export type Venta = Database['public']['Tables']['sales']['Row'] & {
+  customer_document?: string;
+  customer_city?: string;
+  customer_address?: string;
+};
 export type VentaInsertar = Database['public']['Tables']['sales']['Insert'];
 export type VentaActualizar = Database['public']['Tables']['sales']['Update'];
 
