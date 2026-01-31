@@ -2,8 +2,10 @@
 
 import { useSettings } from '@/hooks/use-settings';
 import { SETTINGS_KEYS, BusinessProfile, FinancialConfig, InventoryPrefs } from '@/lib/validators/settings';
-import { Loader2, Store, DollarSign, Package, Save, CheckCircle2, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Loader2, Store, DollarSign, Package, Save, CheckCircle2, AlertTriangle, ShieldCheck, LogOut } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { cerrarSesionAdmin } from '@/lib/supabase/auth';
+import { useRouter } from 'next/navigation';
 import { Switch } from '@/components/ui/switch';
 import {
     Accordion,
@@ -24,6 +26,12 @@ export default function SettingsPage() {
     const [formBusiness, setFormBusiness] = useState<BusinessProfile>(business.settings);
     const [formFinance, setFormFinance] = useState<FinancialConfig>(finance.settings);
     const [formInventory, setFormInventory] = useState<InventoryPrefs>(inventory.settings);
+    const router = useRouter();
+
+    const handleLogout = async () => {
+        await cerrarSesionAdmin();
+        router.push('/login');
+    };
 
     // Sync local state when remote data changes (Realtime)
     useEffect(() => { setFormBusiness(business.settings) }, [business.settings]);
@@ -242,6 +250,18 @@ export default function SettingsPage() {
                     </AccordionItem>
 
                 </Accordion>
+
+            </div>
+
+            <div className="max-w-2xl mx-auto px-4 pb-8">
+                <Button
+                    onClick={handleLogout}
+                    variant="destructive"
+                    className="w-full flex items-center justify-center gap-2 py-6 text-lg font-medium shadow-sm hover:translate-y-0.5 transition-all"
+                >
+                    <LogOut className="w-5 h-5" />
+                    Cerrar Sesión
+                </Button>
             </div>
         </div>
     );

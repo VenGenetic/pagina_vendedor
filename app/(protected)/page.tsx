@@ -33,10 +33,10 @@ export default function Dashboard() {
   const { data: accounts } = useAccounts();
   const [showTransfer, setShowTransfer] = useState(false);
 
-  const handleLogout = async () => {
-    await cerrarSesionAdmin();
-    router.push('/login');
-  };
+  // const handleLogout = async () => {
+  //   await cerrarSesionAdmin();
+  //   router.push('/login');
+  // };
 
   const totalBalance = stats?.saldoTotal || 0;
 
@@ -78,13 +78,13 @@ export default function Dashboard() {
           </div>
           <div className="flex gap-2">
             <ThemeToggle />
-            <button
-              onClick={handleLogout}
+            <Link
+              href="/settings"
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-              title="Cerrar sesión"
+              title="Configuración"
             >
-              <LogOut className="h-5 w-5 text-slate-700 dark:text-slate-300" />
-            </button>
+              <Settings2 className="h-5 w-5 text-slate-700 dark:text-slate-300" />
+            </Link>
           </div>
         </div>
       </header>
@@ -216,7 +216,7 @@ export default function Dashboard() {
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Settings2 className="h-5 w-5 text-white" />
               </div>
-              <span className="text-xs font-bold text-white uppercase tracking-tight text-center leading-tight">Control</span>
+              <span className="text-xs font-bold text-white uppercase tracking-tight text-center leading-tight">Configuración</span>
             </div>
           </Link>
         </div>
