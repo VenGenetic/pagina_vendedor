@@ -9,7 +9,9 @@ export type Cuenta = Database['public']['Tables']['accounts']['Row'];
 export type CuentaInsertar = Database['public']['Tables']['accounts']['Insert'];
 export type CuentaActualizar = Database['public']['Tables']['accounts']['Update'];
 
-export type Transaccion = Database['public']['Tables']['transactions']['Row'];
+export type Transaccion = Database['public']['Tables']['transactions']['Row'] & {
+  is_adjustment?: boolean;
+};
 export type TransaccionInsertar = Database['public']['Tables']['transactions']['Insert'];
 export type TransaccionActualizar = Database['public']['Tables']['transactions']['Update'];
 

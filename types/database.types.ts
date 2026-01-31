@@ -383,6 +383,15 @@ export type Database = {
         };
         Returns: any;
       };
+      update_account_with_adjustment: {
+        Args: {
+          p_account_id: string;
+          p_new_name: string;
+          p_new_balance: number;
+          p_description: string;
+        };
+        Returns: void;
+      };
     };
     Enums: {};
   };

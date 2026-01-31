@@ -7,21 +7,25 @@ import { formatCurrency, formatDateTime, cn, getAccountColor } from '@/lib/utils
 import { useParams } from 'next/navigation';
 import { useState, useMemo } from 'react';
 import { TransferModal } from '@/components/transactions/transfer-modal';
+import { EditAccountDrawer } from '@/components/accounts/edit-account-drawer';
+import { Pencil, Scale } from 'lucide-react';
 
 export default function AccountDetailsPage() {
   const params = useParams();
   const accountId = params.id as string;
   const { data: transactions, isLoading: loadingTx } = useAccountTransactions(accountId);
   const { data: accounts } = useAccounts();
-  
+
   const account = accounts?.find(a => a.id === accountId);
+
   const [showTransfer, setShowTransfer] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
 
   const transactionsWithBalance = useMemo(() => {
     if (!transactions || !account || transactions.length === 0) return [];
-    
+
     // Sort transactions by date desc just to be safe, though they come sorted
-    const sortedTx = [...transactions].sort((a: any, b: any) => 
+    const sortedTx = [...transactions].sort((a: any, b: any) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
@@ -30,22 +34,22 @@ export default function AccountDetailsPage() {
     return sortedTx.map((tx: any) => {
       // Determine direction relative to THIS account
       let signedAmount = 0;
-      
+
       if (tx.account_in_id === accountId) {
-         // Money coming IN (Transfer received)
-         signedAmount = tx.amount;
+        // Money coming IN (Transfer received)
+        signedAmount = tx.amount;
       } else if (tx.account_out_id === accountId) {
-         // Money going OUT (Transfer sent)
-         signedAmount = -tx.amount;
+        // Money going OUT (Transfer sent)
+        signedAmount = -tx.amount;
       } else {
-         // Regular Income/Expense
-         if (tx.type === 'INCOME' && tx.account_id === accountId) signedAmount = tx.amount;
-         else if (tx.type === 'EXPENSE' && tx.account_id === accountId) signedAmount = -tx.amount;
+        // Regular Income/Expense
+        if (tx.type === 'INCOME' && tx.account_id === accountId) signedAmount = tx.amount;
+        else if (tx.type === 'EXPENSE' && tx.account_id === accountId) signedAmount = -tx.amount;
       }
 
       // The current runningBalance is the balance AFTER this transaction
       const balanceAfter = runningBalance;
-      
+
       // Calculate balance BEFORE this transaction (which is balance AFTER the next older one)
       runningBalance -= signedAmount;
 
@@ -60,13 +64,24 @@ export default function AccountDetailsPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 transition-colors">
       {/* Transfer Modal */}
       {account && accounts && (
-        <TransferModal 
-          isOpen={showTransfer} 
-          onClose={() => setShowTransfer(false)} 
+        <TransferModal
+          isOpen={showTransfer}
+          onClose={() => setShowTransfer(false)}
           sourceAccount={account}
           accounts={accounts}
         />
       )}
+
+      {/* Edit Drawer */}
+      {account && (
+        <EditAccountDrawer
+          account={account}
+          isOpen={showEdit}
+          onClose={() => setShowEdit(false)}
+        />
+      )}
+
+      {/* Header */}
       {/* Header */}
       <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 transition-colors">
         <div className="max-w-md mx-auto flex h-16 items-center gap-4 px-4">
@@ -76,9 +91,19 @@ export default function AccountDetailsPage() {
             </button>
           </Link>
           <div className="flex-1">
-            <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">
-              {account?.name || 'Detalles de Cuenta'}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+                {account?.name || 'Detalles de Cuenta'}
+              </h1>
+              {account && (
+                <button
+                  onClick={() => setShowEdit(true)}
+                  className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-blue-600"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Movimientos
             </p>
@@ -96,7 +121,7 @@ export default function AccountDetailsPage() {
           )}>
             {/* Background Pattern */}
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-            
+
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-2">
                 <Wallet className="h-4 w-4 opacity-70" />
@@ -105,14 +130,14 @@ export default function AccountDetailsPage() {
               <h2 className="text-4xl font-bold mb-4 tracking-tight">
                 {formatCurrency(account.balance)}
               </h2>
-              
+
               <div className="flex justify-between items-end">
                 <p className="text-xs uppercase tracking-wider font-semibold border border-current px-2 py-1 rounded opacity-70">
                   {account.type}
                 </p>
-                
+
                 {/* Transfer Button */}
-                <button 
+                <button
                   onClick={() => setShowTransfer(true)}
                   className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-blue-900/50 transition-all active:scale-95 z-20"
                 >
@@ -141,26 +166,30 @@ export default function AccountDetailsPage() {
               const isEntry = tx.account_in_id === accountId || (tx.type === 'INCOME' && tx.account_id === accountId && !tx.account_out_id);
               // Si es transferencia interna, puede ser salida
               const isExit = tx.account_out_id === accountId || (tx.type === 'EXPENSE' && tx.account_id === accountId);
-              
+
               const isPositive = isEntry && !isExit; // Solo entrada
               // En transferencias puede ser ambas si es la misma cta (no debería pasar)
-              
+
               // Ajuste visual para cuando es ambiguo, por defecto usamos el tipo
-              const showGreen = isEntry; 
+              const showGreen = isEntry;
 
               // Check if it's a transfer involving another known bank to apply colors to the row
               let otherAccountName = '';
               if (tx.account_in_id && tx.account_out_id) {
-                 otherAccountName = isEntry ? tx.account_out?.name : tx.account_in?.name;
+                otherAccountName = isEntry ? tx.account_out?.name : tx.account_in?.name;
               }
               const otherAccountColors = otherAccountName ? getAccountColor(otherAccountName) : null;
-              
+
               return (
-                <div 
-                  key={tx.id} 
+                <div
+                  key={tx.id}
                   className={cn(
                     "bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm transition-all",
-                    otherAccountColors?.border ? `border-l-4 ${otherAccountColors.border.replace('border-', 'border-l-')}` : "border-slate-200 dark:border-slate-800"
+                    tx.is_adjustment
+                      ? "bg-amber-50/50 dark:bg-amber-900/10 border-l-4 border-l-amber-400 border-t-amber-200/50 border-r-amber-200/50 border-b-amber-200/50"
+                      : otherAccountColors?.border
+                        ? `border-l-4 ${otherAccountColors.border.replace('border-', 'border-l-')}`
+                        : "border-slate-200 dark:border-slate-800"
                   )}
                 >
                   <div className="flex justify-between items-start mb-2">
@@ -174,16 +203,24 @@ export default function AccountDetailsPage() {
                           <ArrowUpCircle className={cn("h-5 w-5", otherAccountColors ? otherAccountColors.iconColor : "text-rose-600")} />
                         </div>
                       )}
-                      <div>
+
+                      {/* Overwrite icon for Adjustments */}
+                      {tx.is_adjustment && (
+                        <div className="absolute left-4 p-2 rounded-full bg-amber-100 text-amber-600">
+                          <Scale className="h-5 w-5" />
+                        </div>
+                      )}
+
+                      <div className={tx.is_adjustment ? "ml-2" : ""}>
                         {otherAccountName ? (
-                           <div className="flex flex-col">
-                             <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">
-                               {isEntry ? 'Recibido de:' : 'Enviado a:'}
-                             </span>
-                             <p className={cn("font-bold text-sm", otherAccountColors?.iconColor)}>
-                                {otherAccountName}
-                             </p>
-                           </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">
+                              {isEntry ? 'Recibido de:' : 'Enviado a:'}
+                            </span>
+                            <p className={cn("font-bold text-sm", otherAccountColors?.iconColor)}>
+                              {otherAccountName}
+                            </p>
+                          </div>
                         ) : (
                           <p className="font-semibold text-slate-800 dark:text-slate-200 text-sm line-clamp-1">
                             {tx.description}
@@ -205,37 +242,37 @@ export default function AccountDetailsPage() {
                         "text-[11px] font-bold mt-0.5",
                         account ? getAccountColor(account.name).text : "text-slate-500 dark:text-slate-400"
                       )}>
-                         {formatCurrency(tx.balanceAfter)}
+                        {formatCurrency(tx.balanceAfter)}
                       </div>
                     </div>
                   </div>
 
                   {/* Detalle extra si NO es transferencia bancaria (porque ya mostramos el nombre arriba) o si tiene nota */}
                   {(!otherAccountName || tx.notes) && (
-                     <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-50 dark:border-slate-800 pt-2 mt-2">
-                        {!otherAccountName && (
-                          <p className="italic">{tx.description}</p>
-                        )}
-                        {tx.notes && (
-                           <p className="text-slate-400 dark:text-slate-500">Nota: {tx.notes}</p>
-                        )}
-                     </div>
+                    <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-50 dark:border-slate-800 pt-2 mt-2">
+                      {!otherAccountName && (
+                        <p className="italic">{tx.description}</p>
+                      )}
+                      {tx.notes && (
+                        <p className="text-slate-400 dark:text-slate-500">Nota: {tx.notes}</p>
+                      )}
+                    </div>
                   )}
 
                   <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400 pt-1">
-                     {tx.reference_number && (
-                        <div className="flex justify-between">
-                          <span>Ref:</span>
-                          <span className="font-mono">{tx.reference_number}</span>
-                        </div>
-                     )}
-                     
-                     <div className="flex justify-between items-center text-slate-400 dark:text-slate-500 mt-1">
-                        <div className="flex items-center gap-1">
-                          <User className="h-3 w-3" />
-                          <span>{tx.created_by_name || 'Sistema'}</span>
-                        </div>
-                     </div>
+                    {tx.reference_number && (
+                      <div className="flex justify-between">
+                        <span>Ref:</span>
+                        <span className="font-mono">{tx.reference_number}</span>
+                      </div>
+                    )}
+
+                    <div className="flex justify-between items-center text-slate-400 dark:text-slate-500 mt-1">
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        <span>{tx.created_by_name || 'Sistema'}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

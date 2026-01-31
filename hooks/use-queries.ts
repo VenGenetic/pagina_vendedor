@@ -543,3 +543,38 @@ export function useCustomerByCedula(cedula: string) {
     staleTime: 1000 * 60 * 5
   });
 }
+
+// ============================================
+// ACCOUNT ACTIONS
+// ============================================
+
+export interface UpdateAccountInput {
+  accountId: string;
+  name: string;
+  balance: number;
+  reason: string;
+}
+
+export function useUpdateAccountWithAdjustment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ accountId, name, balance, reason }: UpdateAccountInput) => {
+      const { error } = await (supabase.rpc as any)('update_account_with_adjustment', {
+        p_account_id: accountId,
+        p_new_name: name,
+        p_new_balance: balance,
+        p_description: reason
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.accounts });
+      // Invalidate specific account transactions
+      queryClient.invalidateQueries({ queryKey: ['account-transactions', variables.accountId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+    },
+  });
+}
