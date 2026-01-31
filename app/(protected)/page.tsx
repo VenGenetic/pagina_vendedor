@@ -18,7 +18,8 @@ import {
   ArrowDownLeft,
   DollarSign,
   Wallet,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -208,6 +209,16 @@ export default function Dashboard() {
               <span className="text-xs font-bold text-white uppercase tracking-tight text-center leading-tight">Smart<br />Restock</span>
             </div>
           </Link>
+
+          {/* CONTROL / SETTINGS */}
+          <Link href="/settings" className="col-span-2 md:col-span-1">
+            <div className="bg-gradient-to-br from-gray-600 to-gray-700 dark:from-gray-700 dark:to-gray-800 hover:from-gray-700 hover:to-gray-800 dark:hover:from-gray-600 dark:hover:to-gray-700 rounded-xl p-4 flex flex-col items-center gap-2 transition-all shadow-md h-full justify-center group active:scale-95">
+              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Settings2 className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xs font-bold text-white uppercase tracking-tight text-center leading-tight">Control</span>
+            </div>
+          </Link>
         </div>
 
 
@@ -258,8 +269,8 @@ export default function Dashboard() {
                   <div className="flex items-center gap-3 flex-1">
                     <div
                       className={`w-10 h-10 rounded-lg flex items-center justify-center ${transaction.type === 'INCOME'
-                          ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                          : 'bg-red-100 dark:bg-red-900/30'
+                        ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                        : 'bg-red-100 dark:bg-red-900/30'
                         }`}
                     >
                       {transaction.type === 'INCOME' ? (
@@ -279,8 +290,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className={`text-right font-bold text-sm ${transaction.type === 'INCOME'
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-slate-800 dark:text-slate-100'
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-800 dark:text-slate-100'
                     }`}>
                     {transaction.type === 'INCOME' ? '+' : '-'}
                     {formatCurrency(transaction.amount)}
