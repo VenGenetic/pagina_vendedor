@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertTriangle, Trash2, Archive, RefreshCcw, Loader2, AlertOctagon } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertTriangle, Archive, RefreshCcw, Loader2, AlertOctagon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     AccordionItem,
     AccordionTrigger,
@@ -23,16 +25,49 @@ import { supabase } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 
 /**
- * ResetSection Component
- * Handles the 3 tiers of system reset:
- * Tier 1: Transaction Reset (Preserves Stock)
- * Tier 2: Inventory Reset (Wipes Stock)
- * Tier 3: Hard Reset (Factory Reset)
+ * ResetSection Component (ADMIN ONLY)
+ * Handles the 3 tiers of system reset with strict security checks.
  */
 export function ResetSection() {
-    const [isLoading, setIsLoading] = useState<string | null>(null); // 'tier1' | 'tier2' | 'tier3' | null
-    // const supabase = createClientComponentClient(); <-- REPLACED WITH SINGLETON IMPORT
+    const [isLoading, setIsLoading] = useState<string | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
+    const [checkingRole, setCheckingRole] = useState(true);
 
+    // Tier 2 Form State
+    const [tier2Form, setTier2Form] = useState({
+        pichincha: '425.18', // Default seed
+        guayaquil: '421.45',
+        efectivo: '57.64',
+        caja_grande: '0.00'
+    });
+
+    // Check Role on Mount
+    useEffect(() => {
+        async function checkRole() {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Check public.users role
+                const { data: userData } = await supabase
+                    .from('users')
+                    .select('role')
+                    .eq('id', user.id)
+                    .single();
+
+                if ((userData as any)?.role === 'admin') {
+                    setIsAdmin(true);
+                }
+            }
+            setCheckingRole(false);
+        }
+        checkRole();
+    }, []);
+
+    if (checkingRole) return null; // Or skeleton
+    if (!isAdmin) return null; // Hide completely for non-admins
+
+    const handleTier2Change = (field: string, value: string) => {
+        setTier2Form(prev => ({ ...prev, [field]: value }));
+    };
 
     const handleReset = async (tier: 'tier1' | 'tier2' | 'tier3') => {
         setIsLoading(tier);
@@ -43,27 +78,44 @@ export function ResetSection() {
             const formattedDate = new Date().toLocaleString();
 
             let rpcName = '';
-            switch (tier) {
-                case 'tier1': rpcName = 'reset_tier_1_transactions'; break;
-                case 'tier2': rpcName = 'reset_tier_2_inventory'; break;
-                case 'tier3': rpcName = 'reset_tier_3_hard'; break;
-            }
-
-            const { data, error } = await (supabase as any).rpc(rpcName, {
+            let payload: any = {
                 p_user_id: user.id,
                 p_formatted_date: formattedDate
-            });
+            };
+
+            switch (tier) {
+                case 'tier1':
+                    rpcName = 'reset_tier_1_transactions';
+                    break;
+                case 'tier2':
+                    rpcName = 'reset_tier_2_inventory';
+                    payload = {
+                        ...payload,
+                        p_balance_pichincha: parseFloat(tier2Form.pichincha || '0'),
+                        p_balance_guayaquil: parseFloat(tier2Form.guayaquil || '0'),
+                        p_balance_efectivo: parseFloat(tier2Form.efectivo || '0'),
+                        p_balance_caja_grande: parseFloat(tier2Form.caja_grande || '0')
+                    };
+                    break;
+                case 'tier3':
+                    rpcName = 'reset_tier_3_hard';
+                    break;
+            }
+
+            const { error } = await (supabase as any).rpc(rpcName, payload);
 
             if (error) throw error;
 
             toast.success('Reset completado exitosamente');
 
-            // Optional: Force reload to reflect changes (e.g., cleared cache)
-            window.location.reload();
+            // Hard Reload to ensure cache is wiped and fresh data is fetched
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
 
         } catch (error: any) {
             console.error('Reset Error:', error);
-            toast.error('Error al ejecutar el reset: ' + error.message);
+            toast.error('Error Crítico: ' + error.message);
         } finally {
             setIsLoading(null);
         }
@@ -77,8 +129,8 @@ export function ResetSection() {
                         <AlertTriangle className="w-5 h-5" />
                     </div>
                     <div className="text-left">
-                        <h3 className="font-semibold text-red-700 dark:text-red-400">Zona de Peligro</h3>
-                        <p className="text-xs text-red-500/80 font-normal">Reinicios de Sistema y Datos</p>
+                        <h3 className="font-semibold text-red-700 dark:text-red-400">Zona de Peligro (Admin)</h3>
+                        <p className="text-xs text-red-500/80 font-normal">Reinicios y Limpieza de Sistema</p>
                     </div>
                 </div>
             </AccordionTrigger>
@@ -86,104 +138,105 @@ export function ResetSection() {
 
                 {/* TIER 1: TRANSACTION RESET */}
                 <div className="p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-md text-blue-600">
-                                <RefreshCcw className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <h4 className="font-semibold text-slate-800 dark:text-slate-100">Limpieza de Transacciones</h4>
-                                <p className="text-xs text-slate-500">Mantiene Productos y Stock</p>
-                            </div>
-                        </div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <RefreshCcw className="w-4 h-4 text-blue-600" />
+                        <h4 className="font-semibold text-slate-800 dark:text-slate-100">Tier 1: Limpieza de Transacciones</h4>
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
-                        Elimina todas las ventas y movimientos financieros. El stock físico se conserva como "Ajuste Inicial".
+                        Elimina ventas y movimientos. <strong>Stock vuelve a 0</strong>. Cuentas a 0.
                     </p>
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="outline" className="w-full border-blue-200 hover:bg-blue-50 text-blue-700 dark:border-blue-800 dark:hover:bg-blue-900/20 dark:text-blue-400">
-                                {isLoading === 'tier1' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : 'Ejecutar Tier 1'}
+                            <Button variant="outline" className="w-full text-blue-600 border-blue-200 hover:bg-blue-50">
+                                {isLoading === 'tier1' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ejecutar Tier 1'}
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-red-600 flex items-center gap-2">
-                                    <AlertTriangle className="w-5 h-5" />
-                                    ¿Estás absolutamente seguro?
-                                </AlertDialogTitle>
-                                <AlertDialogDescription className="space-y-2">
-                                    <p className="font-bold text-slate-900 dark:text-slate-100">
-                                        Acción: Limpieza de Transacciones (Tier 1)
-                                    </p>
-                                    <div className="bg-red-50 dark:bg-red-900/20 p-3 rounded-md border border-red-100 dark:border-red-900/50 text-red-700 dark:text-red-300 text-sm">
-                                        Atención: Se borrará el historial de deudas de John y pagos a proveedores.
-                                        El stock físico se mantiene intacto, pero aparecerá como "Ajuste de Inventario" en los reportes (valor $0.00).
-                                    </div>
-                                    <p>Esta acción no se puede deshacer.</p>
+                                <AlertDialogTitle className="text-red-600">¿Confirmar Limpieza de Ledger?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Se borrarán todas las ventas y movimientos. El inventario físico se pondrá en 0.
+                                    Esta acción es irreversible.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleReset('tier1')}
-                                    className="bg-red-600 hover:bg-red-700 text-white"
-                                >
-                                    Sí, eliminar transacciones
+                                <AlertDialogAction onClick={() => handleReset('tier1')} className="bg-red-600 text-white">
+                                    Sí, Ejecutar
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
                 </div>
 
-                {/* TIER 2: INVENTORY RESET */}
+                {/* TIER 2: INVENTORY RESET (DYNAMIC) */}
                 <div className="p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
-                    <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-md text-amber-600">
-                                <Archive className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <h4 className="font-semibold text-slate-800 dark:text-slate-100">Reinicio de Inventario</h4>
-                                <p className="text-xs text-slate-500">Stock a Cero + Limpieza Ventas</p>
-                            </div>
-                        </div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <Archive className="w-4 h-4 text-amber-600" />
+                        <h4 className="font-semibold text-slate-800 dark:text-slate-100">Tier 2: Reinicio con Saldos</h4>
                     </div>
                     <p className="text-xs text-slate-600 dark:text-slate-400 mb-4">
-                        Ideal para comenzar un nuevo inventario. Elimina ventas y pone todo el stock en 0.
+                        Igual que Tier 1, pero establece balances iniciales personalizados.
                     </p>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="space-y-1">
+                            <Label className="text-xs">B. Pichincha</Label>
+                            <Input
+                                type="number"
+                                value={tier2Form.pichincha}
+                                onChange={(e) => handleTier2Change('pichincha', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">B. Guayaquil</Label>
+                            <Input
+                                type="number"
+                                value={tier2Form.guayaquil}
+                                onChange={(e) => handleTier2Change('guayaquil', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Efectivo</Label>
+                            <Input
+                                type="number"
+                                value={tier2Form.efectivo}
+                                onChange={(e) => handleTier2Change('efectivo', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-xs">Caja Grande</Label>
+                            <Input
+                                type="number"
+                                value={tier2Form.caja_grande}
+                                onChange={(e) => handleTier2Change('caja_grande', e.target.value)}
+                                className="h-8 text-xs"
+                            />
+                        </div>
+                    </div>
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="outline" className="w-full border-amber-200 hover:bg-amber-50 text-amber-700 dark:border-amber-800 dark:hover:bg-amber-900/20 dark:text-amber-400">
-                                {isLoading === 'tier2' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : 'Ejecutar Tier 2'}
+                            <Button variant="outline" className="w-full text-amber-600 border-amber-200 hover:bg-amber-50">
+                                {isLoading === 'tier2' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ejecutar Tier 2'}
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-red-600 flex items-center gap-2">
-                                    <AlertTriangle className="w-5 h-5" />
-                                    Advertencia de Seguridad
-                                </AlertDialogTitle>
-                                <AlertDialogDescription className="space-y-2">
-                                    <p className="font-bold text-slate-900 dark:text-slate-100">
-                                        Acción: Reinicio de Inventario (Tier 2)
-                                    </p>
-                                    <p>
-                                        Se eliminarán <strong>TODAS las ventas, historiales y movimientos</strong>.
-                                        Además, el <strong>STOCK de todos los productos será 0</strong>.
-                                    </p>
-                                    <p>Esta acción no se puede deshacer.</p>
+                                <AlertDialogTitle className="text-red-600">Reinicio de Cuentas</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Se borrará todo el historial y se establecerán los saldos ingresados.
+                                    Verifica que los montos sean correctos.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleReset('tier2')}
-                                    className="bg-red-600 hover:bg-red-700 text-white"
-                                >
-                                    Sí, reiniciar inventario
+                                <AlertDialogAction onClick={() => handleReset('tier2')} className="bg-red-600 text-white">
+                                    Sí, Resetear y Cargar Saldos
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
@@ -192,55 +245,35 @@ export function ResetSection() {
 
                 {/* TIER 3: HARD RESET */}
                 <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg border border-red-100 dark:border-red-900/40">
-                    <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                            <div className="p-2 bg-red-200 dark:bg-red-900/50 rounded-md text-red-700">
-                                <AlertOctagon className="w-4 h-4" />
-                            </div>
-                            <div>
-                                <h4 className="font-semibold text-red-800 dark:text-red-200">Reinicio Total (Fábrica)</h4>
-                                <p className="text-xs text-red-600/80 dark:text-red-400">Elimina TODO</p>
-                            </div>
-                        </div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <AlertOctagon className="w-4 h-4 text-red-600" />
+                        <h4 className="font-semibold text-red-800 dark:text-red-200">Tier 3: Factory Reset</h4>
                     </div>
                     <p className="text-xs text-red-700 dark:text-red-300 mb-4">
-                        Borra cuentas, ventas, productos, clientes y deja el sistema como recién instalado.
+                        Borra TODO (Ventas, Prodcutos). Cuentas se mantienen en 0.
                     </p>
 
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                             <Button variant="destructive" className="w-full bg-red-600 hover:bg-red-700 text-white">
-                                {isLoading === 'tier3' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : 'Ejecutar Tier 3'}
+                                {isLoading === 'tier3' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Ejecutar Tier 3'}
                             </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent className="border-red-500 border-2">
+                        <AlertDialogContent className="border-red-600 border-2">
                             <AlertDialogHeader>
-                                <AlertDialogTitle className="text-red-600 font-bold uppercase flex items-center gap-2">
-                                    <AlertOctagon className="w-6 h-6" />
-                                    Peligro: Reset de Fábrica
+                                <AlertDialogTitle className="text-red-600 font-bold uppercase">
+                                    PELIGRO: BORRADO TOTAL
                                 </AlertDialogTitle>
-                                <AlertDialogDescription className="space-y-4">
-                                    <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                                        ¿Estás seguro de que quieres eliminar TODO?
-                                    </p>
-                                    <ul className="list-disc pl-5 space-y-1 text-red-700 dark:text-red-300 text-sm font-medium">
-                                        <li>Se eliminarán todas las ventas y reportes.</li>
-                                        <li>Se reiniciarán todas las cuentas de caja y banco.</li>
-                                        <li>El stock de todos los productos será 0.</li>
-                                        <li>Se perderá toda la configuración personalizada.</li>
-                                    </ul>
-                                    <p className="text-xs uppercase font-bold text-red-500">
-                                        Esta acción es irreversible y permanente.
-                                    </p>
+                                <AlertDialogDescription className="font-bold text-slate-900 dark:text-slate-100">
+                                    Esto eliminará todos los PRODUCTOS y CLIENTES.
+                                    El sistema quedará vacío (solo cuentas en 0).
+                                    ¿Estás absolutamente seguro?
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
-                                <AlertDialogCancel>¡NO, SALVARME!</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleReset('tier3')}
-                                    className="bg-red-700 hover:bg-red-800 text-white font-bold"
-                                >
-                                    SI, BORRAR TODO
+                                <AlertDialogCancel>CANCELAR IMPOSIBLE</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleReset('tier3')} className="bg-red-700 hover:bg-red-800 text-white font-bold">
+                                    BORRAR TODO AHORA
                                 </AlertDialogAction>
                             </AlertDialogFooter>
                         </AlertDialogContent>
