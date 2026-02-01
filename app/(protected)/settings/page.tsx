@@ -4,7 +4,7 @@ import { useSettings } from '@/hooks/use-settings';
 import { SETTINGS_KEYS, BusinessProfile, FinancialConfig, InventoryPrefs } from '@/lib/validators/settings';
 import { ResetSection } from './reset-section';
 
-import { Loader2, Store, DollarSign, Package, Save, CheckCircle2, AlertTriangle, ShieldCheck, LogOut } from 'lucide-react';
+import { Loader2, Store, DollarSign, Package, Save, CheckCircle2, AlertTriangle, ShieldCheck, LogOut, ArrowLeft } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cerrarSesionAdmin } from '@/lib/supabase/auth';
 import { useRouter } from 'next/navigation';
@@ -53,8 +53,16 @@ export default function SettingsPage() {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
             {/* Header */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 px-4 py-4 shadow-sm">
-                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 px-4 py-4 shadow-sm flex items-center gap-3">
+                <Button
+                    onClick={() => router.back()}
+                    variant="ghost"
+                    size="icon"
+                    className="-ml-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+                >
+                    <ArrowLeft className="w-5 h-5" />
+                </Button>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100">
                     Configuración
                 </h1>
             </div>
