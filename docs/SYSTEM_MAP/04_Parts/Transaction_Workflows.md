@@ -61,3 +61,32 @@ This file translates the complex creation logic for Income, Expense, and Purchas
     -   If `true`, `account_id` is NOT required.
     -   Total cost to business is $0.00.
     -   Inventory Value increases, but Cash Balance remains unchanged.
+
+## 4. Sale Creation (POS) (`sale/page.tsx`)
+### Logic
+-   **Payment Method Detection**:
+    -   The system dynamically assigns the payment method based on the selected account name:
+        1.  **'TARJETA'**: If name contains "Tarjeta", "Crédito", or "Débito".
+        2.  **'EFECTIVO'**: If name contains "Efectivo".
+        3.  **'TRANSFERENCIA'**: usage as fallback for all other accounts.
+-   **Customer Resolution**:
+    -   User can toggle between 'Consumidor Final' and 'Cliente'.
+    -   If 'Cliente', system queries database by Cedula/RUC (debounced 500ms).
+-   **Stock Validation**:
+    -   Prevents submission if any item quantity > `product.current_stock`.
+
+## 5. Transfers (`TransferModal.tsx`)
+### Logic
+-   **Constraints**:
+    -   Current Account is locked as Source.
+    -   Destination cannot be same as Source.
+    -   Amount cannot exceed Source Balance.
+-   **Effect**:
+    -   Creates a Transaction with `account_in_id` (Dest) and `account_out_id` (Source).
+    -   Updates both balances atomically via backend trigger.
+
+## 6. Debugging & Known Issues
+### Transaction Deletion & Balance Reversion
+-   **Risk**: Deleting a primary transaction (e.g., Transfer) may NOT automatically delete associated fee or shipping transactions if they are loosely coupled.
+-   **Symptom**: "Ghost" balances (e.g., off by small amounts like $4) after deletion.
+-   **Investigation**: Verify if transfers create multiple distinct transaction records.

@@ -1,7 +1,8 @@
 'use client';
 
 import { useAccountTransactions, useAccounts } from '@/hooks/use-queries';
-import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, User, Loader2, FileText, Wallet, ArrowRightLeft } from 'lucide-react';
+import { EditTransactionModal } from '@/components/transactions/edit-transaction-modal';
+import { ArrowLeft, ArrowUpCircle, ArrowDownCircle, User, Loader2, FileText, Wallet, ArrowRightLeft, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime, cn, getAccountColor } from '@/lib/utils';
 import { useParams } from 'next/navigation';
@@ -20,6 +21,7 @@ export default function AccountDetailsPage() {
 
   const [showTransfer, setShowTransfer] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [editingTx, setEditingTx] = useState<any>(null);
 
   const transactionsWithBalance = useMemo(() => {
     if (!transactions || !account || transactions.length === 0) return [];
@@ -62,6 +64,11 @@ export default function AccountDetailsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 transition-colors">
+      <EditTransactionModal
+        isOpen={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        transaction={editingTx}
+      />
       {/* Transfer Modal */}
       {account && accounts && (
         <TransferModal
@@ -272,6 +279,13 @@ export default function AccountDetailsPage() {
                         <User className="h-3 w-3" />
                         <span>{tx.created_by_name || 'Sistema'}</span>
                       </div>
+                      <button
+                        onClick={() => setEditingTx(tx)}
+                        className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded hover:text-blue-600 transition-colors"
+                        title="Editar detalles"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
                     </div>
                   </div>
                 </div>

@@ -3,26 +3,29 @@
 import { useCommissionHistory, useDeleteCommission } from '@/hooks/use-queries';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { ArrowLeft, Trash2, Calendar, DollarSign, AlertTriangle, ChevronDown, User, Package, Wallet, ArrowUpRight, ArrowDownLeft, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Calendar, DollarSign, AlertTriangle, ChevronDown, User, Package, Wallet, ArrowUpRight, ArrowDownLeft, TrendingDown, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 
+import { EditTransactionModal } from '@/components/transactions/edit-transaction-modal';
+
 export default function CommissionHistoryPage() {
   const { data: commissions, isLoading } = useCommissionHistory();
-  const deleteMutation = useDeleteCommission();
+  // const deleteMutation = useDeleteCommission(); // Not used anymore
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingTx, setEditingTx] = useState<any>(null); // State for editing
 
-  const handleDelete = async (id: string) => {
-    deleteMutation.mutate(id);
-  };
+  // const handleDelete = async (id: string) => {
+  //   deleteMutation.mutate(id);
+  // };
 
   // Group commissions by date
   const groupedCommissions = useMemo(() => {
     if (!commissions) return {};
-    
+
     return commissions.reduce((groups: any, tx: any) => {
       const date = new Date(tx.transaction_date || tx.created_at).toLocaleDateString('es-EC', {
         timeZone: 'America/Guayaquil',
@@ -31,7 +34,7 @@ export default function CommissionHistoryPage() {
         day: 'numeric',
         weekday: 'long'
       });
-      
+
       if (!groups[date]) {
         groups[date] = [];
       }
@@ -43,7 +46,7 @@ export default function CommissionHistoryPage() {
   // Calculate totals
   const totals = useMemo(() => {
     if (!commissions) return { count: 0, amount: 0 };
-    
+
     return {
       count: commissions.length,
       amount: commissions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
@@ -69,23 +72,28 @@ export default function CommissionHistoryPage() {
       </header>
 
       <main className="container max-w-2xl mx-auto px-4 py-6">
+        <EditTransactionModal
+          isOpen={!!editingTx}
+          onClose={() => setEditingTx(null)}
+          transaction={editingTx}
+        />
         {isLoading && (
-            <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="animate-spin">
-                  <Wallet className="h-10 w-10 text-emerald-500" />
-                </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Cargando historial de ventas...</p>
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <div className="animate-spin">
+              <Wallet className="h-10 w-10 text-emerald-500" />
             </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Cargando historial de ventas...</p>
+          </div>
         )}
 
         {!isLoading && commissions?.length === 0 && (
-            <div className="text-center py-20 px-6">
-              <div className="bg-slate-100 dark:bg-slate-900 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <Package className="h-10 w-10 text-slate-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Sin ventas</h3>
-              <p className="text-slate-500 dark:text-slate-400 mt-2">No hay ventas registradas aún.</p>
+          <div className="text-center py-20 px-6">
+            <div className="bg-slate-100 dark:bg-slate-900 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Package className="h-10 w-10 text-slate-400" />
             </div>
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Sin ventas</h3>
+            <p className="text-slate-500 dark:text-slate-400 mt-2">No hay ventas registradas aún.</p>
+          </div>
         )}
 
         {!isLoading && commissions && commissions.length > 0 && (
@@ -105,7 +113,7 @@ export default function CommissionHistoryPage() {
                 {/* Transactions for this date */}
                 <div className="space-y-4">
                   {txs.map((tx: any, index: number) => (
-                    <div 
+                    <div
                       key={tx.id}
                       className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden hover:shadow-lg hover:border-emerald-300 dark:hover:border-emerald-700 transition-all animate-in fade-in slide-in-from-bottom-4 duration-500"
                       style={{ animationDelay: `${Math.min(index * 50, 500)}ms` }}
@@ -116,7 +124,7 @@ export default function CommissionHistoryPage() {
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-2">
                               <span className="inline-flex items-center bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider">
-                                  Venta
+                                Venta
                               </span>
                               <span className="text-xs text-slate-400 dark:text-slate-500 font-mono">
                                 {new Date(tx.transaction_date || tx.created_at).toLocaleTimeString('es-EC', {
@@ -130,33 +138,14 @@ export default function CommissionHistoryPage() {
                               {tx.description}
                             </h3>
                           </div>
-                          
-                          {/* Delete Button */}
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <button className="p-2 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors">
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>¿Eliminar esta venta?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Esta acción es irreversible. Se eliminará el ingreso de {formatCurrency(tx.amount)} y también los costos y envíos asociados a esta venta específica.
-                                  Los saldos de las cuentas se corregirán automáticamente.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => handleDelete(tx.id)}
-                                  className="bg-rose-600 hover:bg-rose-700 text-white"
-                                >
-                                  Sí, eliminar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+
+                          {/* Edit Button */}
+                          <button
+                            onClick={() => setEditingTx(tx)}
+                            className="p-2 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
                         </div>
 
                         {/* Amount and Account */}
@@ -181,7 +170,7 @@ export default function CommissionHistoryPage() {
                             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
                               Detalles {tx.relatedTransactions && tx.relatedTransactions.length > 0 && `(${tx.relatedTransactions.length} movimientos)`}
                             </span>
-                            <ChevronDown 
+                            <ChevronDown
                               className={cn(
                                 "h-4 w-4 text-slate-600 dark:text-slate-400 transition-transform",
                                 expandedId === tx.id && "rotate-180"
@@ -222,7 +211,7 @@ export default function CommissionHistoryPage() {
                               {tx.details && (
                                 <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 p-3 rounded-lg space-y-2">
                                   <p className="text-[10px] uppercase font-bold text-purple-600 dark:text-purple-400">Detalles de Productos:</p>
-                                  
+
                                   {typeof tx.details === 'object' ? (
                                     <>
                                       {tx.details.items && Array.isArray(tx.details.items) && (

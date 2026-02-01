@@ -13,17 +13,7 @@ import { Producto, Customer } from '@/types';
 import { useSettings } from '@/hooks/use-settings';
 import { SETTINGS_KEYS, FinancialConfig } from '@/lib/validators/settings';
 import { toast } from 'sonner';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { EditSaleModal } from '@/components/transactions/edit-sale-modal';
 
 interface SaleItem {
   productId: string;
@@ -40,7 +30,8 @@ export default function NewSalePage() {
 
   // History Hooks
   const { data: recentSales, isLoading: loadingHistory } = useRecentSales();
-  const { mutate: deleteSale, isPending: isDeleting } = useDeleteSale();
+
+  const [editingSale, setEditingSale] = useState<any>(null);
 
   // Settings
   const { settings: financeSettings } = useSettings<FinancialConfig>(SETTINGS_KEYS.FINANCE);
@@ -228,7 +219,16 @@ export default function NewSalePage() {
       ciudad_cliente: clientType === 'CLIENT' ? customerCity : undefined,
       direccion_cliente: clientType === 'CLIENT' ? customerAddress : undefined,
 
-      metodo_pago: 'EFECTIVO' as const, // Default, se podría agregar selector
+      // Payment Method Detection Logic
+      // 1. Tarjeta/Credito/Debito -> TARJETA
+      // 2. Efectivo -> EFECTIVO
+      // 3. Fallback -> TRANSFERENCIA
+      metodo_pago: (() => {
+        const accName = accounts?.find(a => a.id === selectedAccount)?.name.toLowerCase() || '';
+        if (accName.includes('tarjeta') || accName.includes('crédito') || accName.includes('débito') || accName.includes('credito') || accName.includes('debito')) return 'TARJETA';
+        if (accName.includes('efectivo')) return 'EFECTIVO';
+        return 'TRANSFERENCIA';
+      })() as 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA',
       articulos: items.map((item) => ({
         id_producto: item.productId,
         cantidad: item.quantity,
@@ -249,6 +249,11 @@ export default function NewSalePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 transition-colors">
+      <EditSaleModal
+        isOpen={!!editingSale}
+        onClose={() => setEditingSale(null)}
+        sale={editingSale}
+      />
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 transition-colors">
         <div className="max-w-md md:max-w-4xl mx-auto flex h-16 items-center gap-4 px-4">
@@ -822,33 +827,15 @@ export default function NewSalePage() {
                     </div>
                   )}
 
-                  {/* Delete Button */}
+                  {/* Edit Button */}
                   <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800">
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <button className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 flex items-center gap-1 font-semibold px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
-                          <Trash2 className="w-3 h-3" />
-                          Eliminar Venta
-                        </button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esta acción eliminará la venta #{sale.sale_number}, revertirá el stock de los productos y descontará el dinero de la cuenta. No se puede deshacer.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => deleteSale(sale.id)}
-                            className="bg-red-600 hover:bg-red-700 text-white dark:text-white"
-                          >
-                            {isDeleting ? 'Eliminando...' : 'Sí, Eliminar'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <button
+                      onClick={() => setEditingSale(sale)}
+                      className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-semibold px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      Editar Cliente
+                    </button>
                   </div>
                 </div>
               ))}

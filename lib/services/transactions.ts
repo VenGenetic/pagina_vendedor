@@ -493,3 +493,67 @@ export async function crearTransferencia(input: EntradaCrearTransferencia) {
     return { success: false, error };
   }
 }
+
+export interface UpdateTransactionDetailsInput {
+  transactionId: string;
+  description?: string;
+  notes?: string;
+  reference_number?: string;
+}
+
+export async function updateTransactionDetails(input: UpdateTransactionDetailsInput) {
+  try {
+    const updates: any = {};
+    if (input.description !== undefined) updates.description = input.description;
+    if (input.notes !== undefined) updates.notes = input.notes;
+    if (input.reference_number !== undefined) updates.reference_number = input.reference_number;
+
+    if (Object.keys(updates).length === 0) return { success: true };
+
+    const { error } = await supabase
+      .from('transactions')
+      .update(updates as never)
+      .eq('id', input.transactionId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating transaction:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export interface UpdateSaleDetailsInput {
+  saleId: string;
+  customer_name?: string;
+  customer_document?: string;
+  customer_phone?: string;
+  customer_email?: string;
+  customer_city?: string;
+  customer_address?: string;
+}
+
+export async function updateSaleDetails(input: UpdateSaleDetailsInput) {
+  try {
+    const updates: any = {};
+    if (input.customer_name !== undefined) updates.customer_name = input.customer_name;
+    if (input.customer_document !== undefined) updates.customer_document = input.customer_document;
+    if (input.customer_phone !== undefined) updates.customer_phone = input.customer_phone;
+    if (input.customer_email !== undefined) updates.customer_email = input.customer_email;
+    if (input.customer_city !== undefined) updates.customer_city = input.customer_city;
+    if (input.customer_address !== undefined) updates.customer_address = input.customer_address;
+
+    if (Object.keys(updates).length === 0) return { success: true };
+
+    const { error } = await supabase
+      .from('sales')
+      .update(updates as never)
+      .eq('id', input.saleId);
+
+    if (error) throw error;
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error updating sale:', error);
+    return { success: false, error: error.message };
+  }
+}

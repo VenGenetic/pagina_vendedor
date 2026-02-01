@@ -22,3 +22,6 @@ The **General Ledger** is the assembly that manages the core accounting logic. I
     -   Trigger: `trigger_update_account_balance`
     -   Action: Updates `accounts.balance` (+ for INCOME, - for EXPENSE).
 4.  **Chronology**: All specific queries use `transaction_date DESC` index for performance.
+5.  **Negative Balances**:
+    -   *Context*: Business requires handling overdrafts or costs exceeding current cash (e.g., waiting for reimbursement).
+    -   *Logic*: The `allow_negative_balance.sql` script explicitly drops the `positive_balance` constraint from the `accounts` table, allowing `balance` to be < 0.

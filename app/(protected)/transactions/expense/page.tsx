@@ -2,34 +2,23 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccounts, useCreateExpense, useRecentExpenses, useDeleteExpense } from '@/hooks/use-queries';
+import { useAccounts, useCreateExpense, useRecentExpenses } from '@/hooks/use-queries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Clock, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, Loader2, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { EditTransactionModal } from '@/components/transactions/edit-transaction-modal';
 
 export default function NewExpensePage() {
   const router = useRouter();
   const { data: accounts } = useAccounts();
   const createExpense = useCreateExpense();
-  
+
   // History Hooks
   const { data: recentExpenses, isLoading: loadingHistory } = useRecentExpenses();
-  const { mutate: deleteExpense, isPending: isDeleting } = useDeleteExpense();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -37,6 +26,9 @@ export default function NewExpensePage() {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'TRANSFER' | 'CHECK' | 'OTHER'>('CASH');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Editing State
+  const [editingTx, setEditingTx] = useState<any>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +58,7 @@ export default function NewExpensePage() {
     });
 
     if (result.success) {
-      alert('Gasto registrado exitosamente');
+      // alert('Gasto registrado exitosamente'); // Removed to be less intrusive, or keep if desired
       router.push('/');
     } else {
       alert('Error al registrar el gasto: ' + result.error);
@@ -75,6 +67,12 @@ export default function NewExpensePage() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
+      <EditTransactionModal
+        isOpen={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        transaction={editingTx}
+      />
+
       <header className="sticky top-0 z-50 w-full border-b bg-background">
         <div className="container flex h-16 items-center gap-4 px-4">
           <Link href="/">
@@ -148,12 +146,12 @@ export default function NewExpensePage() {
                   onChange={(e) => setAccountId(e.target.value)}
                   className="w-full h-12 px-3 border border-red-200 rounded-xl bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                   <option value="">Seleccione la cuenta de pago</option>
-                    {accounts?.sort((a, b) => a.name.localeCompare(b.name)).map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name} ({formatCurrency(account.balance)})
-                      </option>
-                    ))}
+                  <option value="">Seleccione la cuenta de pago</option>
+                  {accounts?.sort((a, b) => a.name.localeCompare(b.name)).map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} ({formatCurrency(account.balance)})
+                    </option>
+                  ))}
                 </select>
               </div>
 
@@ -165,11 +163,11 @@ export default function NewExpensePage() {
                   onChange={(e) => setPaymentMethod(e.target.value as any)}
                   className="w-full h-12 px-3 border border-red-200 rounded-xl bg-white text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500"
                 >
-                    <option value="CASH">Efectivo</option>
-                    <option value="CARD">Tarjeta</option>
-                    <option value="TRANSFER">Transferencia</option>
-                    <option value="CHECK">Cheque</option>
-                    <option value="OTHER">Otro</option>
+                  <option value="CASH">Efectivo</option>
+                  <option value="CARD">Tarjeta</option>
+                  <option value="TRANSFER">Transferencia</option>
+                  <option value="CHECK">Cheque</option>
+                  <option value="OTHER">Otro</option>
                 </select>
               </div>
 
@@ -208,73 +206,62 @@ export default function NewExpensePage() {
 
         {/* History Section */}
         <div className="mt-8 pt-6 border-t border-slate-200">
-           <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-             <Clock className="w-5 h-5 text-slate-500" />
-             Historial de Gastos
-           </h2>
+          <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <Clock className="w-5 h-5 text-slate-500" />
+            Historial de Gastos
+          </h2>
 
-           {loadingHistory ? (
-              <div className="flex justify-center py-4">
-                <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
-              </div>
-           ) : recentExpenses && recentExpenses.length > 0 ? (
-              <div className="space-y-3">
-                 {recentExpenses.map((tx: any) => (
-                    <Card key={tx.id} className="overflow-hidden">
-                       <CardContent className="p-4 flex flex-col gap-3">
-                          <div className="flex justify-between items-start">
-                             <div>
-                                <div className="font-bold text-slate-800 line-clamp-1">
-                                   {tx.description}
-                                </div>
-                                <div className="text-xs text-slate-500 mt-1">
-                                   {formatDateTime(tx.created_at)}
-                                </div>
-                                <div className="text-xs text-slate-400 mt-0.5">
-                                   Ref: {tx.reference_number || 'N/A'}
-                                </div>
-                             </div>
-                             <div className="font-bold text-red-600 whitespace-nowrap">
-                                -{formatCurrency(tx.amount)}
-                             </div>
-                          </div>
+          {loadingHistory ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+            </div>
+          ) : recentExpenses && recentExpenses.length > 0 ? (
+            <div className="space-y-3">
+              {recentExpenses.map((tx: any) => (
+                <Card key={tx.id} className="overflow-hidden">
+                  <CardContent className="p-4 flex flex-col gap-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-800 line-clamp-1">
+                          {tx.description}
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          {formatDateTime(tx.created_at)}
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          Ref: {tx.reference_number || 'N/A'}
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="font-bold text-red-600 whitespace-nowrap">
+                          -{formatCurrency(tx.amount)}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-xs text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                          onClick={() => setEditingTx(tx)}
+                        >
+                          <Edit2 className="w-3 h-3 mr-1" />
+                          Editar
+                        </Button>
+                      </div>
+                    </div>
 
-                          <div className="flex justify-end pt-2 border-t border-slate-50">
-                             <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                   <Button variant="ghost" size="sm" className="h-8 text-xs text-red-500 hover:text-red-700 hover:bg-red-50">
-                                      <Trash2 className="w-3 h-3 mr-2" />
-                                      Eliminar Gasto
-                                   </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                   <AlertDialogHeader>
-                                      <AlertDialogTitle>¿Eliminar este gasto?</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                         Se eliminará la transacción de {formatCurrency(tx.amount)} y se devolverá el dinero al saldo de la cuenta.
-                                      </AlertDialogDescription>
-                                   </AlertDialogHeader>
-                                   <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                      <AlertDialogAction 
-                                        onClick={() => deleteExpense(tx.id)}
-                                        className="bg-red-600 hover:bg-red-700"
-                                      >
-                                         {isDeleting ? 'Eliminando...' : 'Sí, Eliminar'}
-                                      </AlertDialogAction>
-                                   </AlertDialogFooter>
-                                </AlertDialogContent>
-                             </AlertDialog>
-                          </div>
-                       </CardContent>
-                    </Card>
-                 ))}
-              </div>
-           ) : (
-              <div className="text-center py-6 text-slate-400 text-sm italic">
-                 No hay gastos recientes
-              </div>
-           )}
+                    {tx.notes && (
+                      <div className="text-xs text-slate-500 italic border-t border-slate-100 pt-2">
+                        {tx.notes}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-slate-400 text-sm italic">
+              No hay gastos recientes
+            </div>
+          )}
         </div>
       </main>
     </div>

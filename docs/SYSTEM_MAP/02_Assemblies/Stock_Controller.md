@@ -19,5 +19,5 @@ The **Stock Controller** is the logical assembly of triggers and functions that 
 1.  **Atomic Updates**: Stock is **NEVER** updated directly. It is a derivative of `inventory_movements`.
 2.  **Trigger Mechanism**: The database trigger `trigger_update_product_stock` executes `update_product_stock()` after every insert.
 3.  **Constraints**: `current_stock` >= 0 is enforced by database constraint `positive_stock`.
-    -   *Exception*: The `allow_negative_balance.sql` script explicitly drops this constraint (`DROP CONSTRAINT positive_balance`) to allow overdrafts if cost exceeds balance or for temporary adjustments.
+    -   *Constraint*: `CHECK (current_stock >= 0)` ensures physical reality (cannot have negative items).
 4.  **Synchronization**: `SUM(inventory_movements.quantity_change) == products.current_stock`.

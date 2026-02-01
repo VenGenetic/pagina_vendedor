@@ -23,3 +23,6 @@ The **Transaction History** is the chronological ledger of all financial movemen
     - `transaction_date` (Indexed DESC)
     - `payment_method` (Enum: 'CASH', 'CARD', 'TRANSFER', 'CHECK', 'OTHER')
     - `inventory_movement_id` (Optional FK -> inventory_movements)
+    - `account_in_id` / `account_out_id` (FK -> accounts, used for Transfers)
+    - `created_by` (UUID -> auth.users)
+    - `created_by_name` (Text, denormalized for audit)

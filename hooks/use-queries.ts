@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
-import { processSale, processPurchase, createExpense, createIncome } from '@/lib/services/transactions';
+import { processSale, processPurchase, createExpense, createIncome, updateTransactionDetails, updateSaleDetails, UpdateSaleDetailsInput, UpdateTransactionDetailsInput } from '@/lib/services/transactions';
 import type { CreateSaleInput, DashboardStats, ProductoStockBajo, Producto, Cuenta, ActividadReciente, EntradaCrearIngreso, Customer } from '@/types';
 
 // Query keys
@@ -576,5 +576,36 @@ export function useUpdateAccountWithAdjustment() {
       queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
     },
+  });
+}
+// ============================================
+// UPDATE DETAILS
+// ============================================
+
+export function useUpdateTransactionDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateTransactionDetails,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.transactions });
+      queryClient.invalidateQueries({ queryKey: ['recent-expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-purchases'] });
+      // Invalidate all account transactions 
+      // queryClient.invalidateQueries({ queryKey: ['account-transactions'] }); 
+      // Note: Partial matching for arrays in v4/v5 works if we invalidate the prefix? 
+      // In v5, exact: false is default.
+      queryClient.invalidateQueries({ queryKey: ['account-transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions-history'] });
+    }
+  });
+}
+
+export function useUpdateSaleDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateSaleDetails,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recent-sales'] });
+    }
   });
 }

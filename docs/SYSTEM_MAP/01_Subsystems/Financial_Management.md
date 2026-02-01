@@ -23,3 +23,26 @@ The **Financial Management** subsystem governs the flow of money. It enforces th
 2.  **Transaction Logging**: Immutable recording of 'INCOME' and 'EXPENSE' in `transactions`.
 3.  **Auditability**: Providing a clear trail of where money came from and went.
 4.  **Balance Automation**: The `trigger_update_account_balance` automatically updates `accounts.balance` on every insertion.
+
+## Sales Transaction Flow
+The sales process is an atomic operation orchestrated by the `process_sale_transaction` RPC. It ensures integrity across Inventory, Sales, and Financial ledgers.
+
+1.  **Orchestration (RPC)**:
+    -   **Atomicity**: All steps occur within a single transaction. If any fail, the entire sale is rolled back.
+    -   **Validation**: Stock levels are checked (`products.current_stock` >= `requested_quantity`) with row locking (`FOR UPDATE`) to prevent race conditions.
+
+2.  **Customer Snapshot**:
+    -   Customer data is upserted (created or updated) in the `customers` table.
+    -   Critical customer details (Name, ID) are also snapshotted into the `sales` table to preserve historical accuracy even if the customer record changes later.
+
+3.  **Inventory Impact**:
+    -   **Movement Log**: `inventory_movements` records are created for each item (Type: `OUT`, Reason: `SALE`).
+    -   **Stock Update Trigger**: `trigger_update_product_stock` fires on insertion to `inventory_movements`, automatically deducting the quantity from `products.current_stock`.
+
+4.  **Financial Impact**:
+    -   **Income**: A `transactions` record is created (Type: `INCOME`) for the sale total.
+    -   **Balance Update Trigger**: `trigger_update_account_balance` fires on insertion to `transactions`, automatically increasing the `accounts.balance`.
+    -   **Shipping**: If applicable, a separate `transactions` record (Type: `EXPENSE`) is created for shipping costs, decreasing the relevant account balance.
+
+5.  **Reversibility**:
+    -   Deleting a sale requires reversing these steps. The system supports this via `delete_sale` logic which relies on `trigger_update_product_stock` and `trigger_update_account_balance` handling `DELETE` events to restore stock and balances automatically.

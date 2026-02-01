@@ -44,13 +44,20 @@ interface PurchaseBatch {
     cost_price: number;
     selling_price: number;
   }[];
+  transaction_notes?: string;
+  transaction_reference_number?: string;
 }
+
+import { EditTransactionModal } from '@/components/transactions/edit-transaction-modal';
 
 export default function PurchaseHistoryPage() {
   const queryClient = useQueryClient();
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
   const [editProfitValues, setEditProfitValues] = useState<Record<string, string>>({});
+
+  // State for editing generic transaction details
+  const [editingTx, setEditingTx] = useState<any>(null);
 
   const { data: batches, isLoading } = useQuery({
     queryKey: ['purchase-batches'],
@@ -84,7 +91,7 @@ export default function PurchaseHistoryPage() {
 
       // Group by transaction_id or by date+notes for free entries
       const grouped = new Map<string, any[]>();
-      
+
       (movements || []).forEach((mov: any) => {
         let key: string;
         if (mov.transaction_id) {
@@ -94,7 +101,7 @@ export default function PurchaseHistoryPage() {
           const dateKey = new Date(mov.created_at).toISOString().slice(0, 16);
           key = `free_${dateKey}_${mov.notes || 'no-notes'}`;
         }
-        
+
         if (!grouped.has(key)) {
           grouped.set(key, []);
         }
@@ -105,24 +112,24 @@ export default function PurchaseHistoryPage() {
       const transactionIds = Array.from(grouped.keys()).filter(k => !k.startsWith('free_'));
       const { data: transactions } = await supabase
         .from('transactions')
-        .select('id, description, amount, created_at')
+        .select('id, description, amount, created_at, notes, reference_number')
         .in('id', transactionIds);
 
       const transactionMap = new Map((transactions || []).map((t: any) => [t.id, t]));
 
       // Build batch objects
       const result: PurchaseBatch[] = [];
-      
+
       grouped.forEach((items, key) => {
         const isFree = key.startsWith('free_');
         const transaction = isFree ? null : transactionMap.get(key);
-        
+
         const batch: PurchaseBatch = {
           id: key,
           created_at: items[0].created_at,
           transaction_id: isFree ? null : key,
-          description: transaction?.description || 
-                      (items[0].notes || 'Ingreso sin costo'),
+          description: transaction?.description ||
+            (items[0].notes || 'Ingreso sin costo'),
           total_cost: items.reduce((sum, item) => sum + (item.total_value || 0), 0),
           total_items: items.reduce((sum, item) => sum + item.quantity_change, 0),
           is_free_entry: isFree,
@@ -136,12 +143,14 @@ export default function PurchaseHistoryPage() {
             cost_price: item.products?.cost_price || 0,
             selling_price: item.products?.selling_price || 0,
           })),
+          transaction_notes: transaction?.notes,
+          transaction_reference_number: transaction?.reference_number,
         };
-        
+
         result.push(batch);
       });
 
-      return result.sort((a, b) => 
+      return result.sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     },
@@ -153,7 +162,7 @@ export default function PurchaseHistoryPage() {
         .from('products')
         .update({ selling_price: newPrice })
         .eq('id', productId);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
@@ -172,7 +181,7 @@ export default function PurchaseHistoryPage() {
     mutationFn: async (batch: PurchaseBatch) => {
       // 1. Get all movement IDs
       const movementIds = batch.items.map(item => item.movement_id);
-      
+
       // 2. Revert stock for each product
       for (const item of batch.items) {
         const { data: product } = await supabase
@@ -180,7 +189,7 @@ export default function PurchaseHistoryPage() {
           .select('current_stock')
           .eq('id', item.product_id)
           .single();
-        
+
         if (product) {
           const productData = product as any;
           const newStock = Math.max(0, (productData.current_stock || 0) - item.quantity);
@@ -190,25 +199,25 @@ export default function PurchaseHistoryPage() {
             .eq('id', item.product_id);
         }
       }
-      
+
       // 3. Delete inventory movements
       const { error: movError } = await supabase
         .from('inventory_movements')
         .delete()
         .in('id', movementIds);
-      
+
       if (movError) throw movError;
-      
+
       // 4. Delete transaction if exists
       if (batch.transaction_id) {
         const { error: txError } = await supabase
           .from('transactions')
           .delete()
           .eq('id', batch.transaction_id);
-        
+
         if (txError) throw txError;
       }
-      
+
       return true;
     },
     onSuccess: () => {
@@ -226,6 +235,11 @@ export default function PurchaseHistoryPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
+      <EditTransactionModal
+        isOpen={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        transaction={editingTx}
+      />
       {/* Header */}
       <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="max-w-5xl mx-auto flex h-16 items-center gap-4 px-4">
@@ -279,62 +293,30 @@ export default function PurchaseHistoryPage() {
                         )}
                       </div>
                     </div>
-                    
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Revertir
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>¿Revertir este ingreso de inventario?</AlertDialogTitle>
-                          <AlertDialogDescription className="space-y-3">
-                            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg p-3 flex gap-3">
-                              <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
-                              <div className="text-sm text-amber-900 dark:text-amber-200">
-                                <p className="font-semibold mb-1">Esta acción:</p>
-                                <ul className="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-300">
-                                  <li>Restará el stock de {batch.items.length} productos</li>
-                                  <li>Eliminará {batch.total_items} unidades del inventario</li>
-                                  {!batch.is_free_entry && <li>Eliminará la transacción de {formatCurrency(batch.total_cost)}</li>}
-                                  <li className="font-bold text-rose-700 dark:text-rose-400">No se puede deshacer</li>
-                                </ul>
-                              </div>
-                            </div>
-                            
-                            <div className="text-sm text-slate-600 dark:text-slate-400">
-                              <p className="font-medium mb-2">Productos afectados:</p>
-                              <div className="max-h-40 overflow-y-auto space-y-1 text-xs">
-                                {batch.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between py-1 px-2 bg-slate-50 dark:bg-slate-900 rounded">
-                                    <span className="font-medium">{item.product_name}</span>
-                                    <span className="text-slate-500">-{item.quantity} un.</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => deleteBatch.mutate(batch)}
-                            className="bg-rose-600 hover:bg-rose-700 text-white"
-                          >
-                            {deleteBatch.isPending ? 'Revirtiendo...' : 'Sí, Revertir Ingreso'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+
+                    {/* Edit Button Replacement for Revert */}
+                    {!batch.is_free_entry && batch.transaction_id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        onClick={() => {
+                          setEditingTx({
+                            id: batch.transaction_id,
+                            description: batch.description,
+                            amount: batch.total_cost,
+                            notes: batch.transaction_notes || '',
+                            reference_number: batch.transaction_reference_number || ''
+                          });
+                        }}
+                      >
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Editar
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
-                
+
                 <CardContent className="pt-4">
                   <Button
                     variant="ghost"
@@ -344,85 +326,85 @@ export default function PurchaseHistoryPage() {
                   >
                     {expandedBatch === batch.id ? '▼ Ocultar detalles' : '▶ Ver detalles'}
                   </Button>
-                  
+
                   {expandedBatch === batch.id && (
                     <div className="mt-4 space-y-2">
                       {batch.items.map((item, idx) => {
                         const isEditing = editingProduct === item.product_id;
                         const costWithTax = item.cost_price;
-                        
-                        return (
-                        <div 
-                          key={idx}
-                          className="flex items-center justify-between py-3 px-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-sm gap-3"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-slate-800 dark:text-slate-200 truncate">{item.product_name}</p>
-                            <p className="text-xs text-slate-500 font-mono">{item.product_sku}</p>
-                            <div className="text-xs text-slate-500 mt-1">
-                              <span>Costo: {formatCurrency(item.cost_price)} • Venta: {formatCurrency(item.selling_price)}</span>
-                            </div>
-                          </div>
 
-                          {isEditing ? (
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={editProfitValues[item.product_id] || item.selling_price}
-                                onChange={(e) => setEditProfitValues({
-                                  ...editProfitValues,
-                                  [item.product_id]: e.target.value
-                                })}
-                                className="w-24 h-8 text-xs"
-                              />
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
-                                onClick={() => {
-                                  const newPrice = parseFloat(editProfitValues[item.product_id] || '0');
-                                  if (newPrice > 0) {
-                                    updateSellingPrice.mutate({ productId: item.product_id, newPrice });
-                                  }
-                                }}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-slate-400 hover:text-slate-600"
-                                onClick={() => {
-                                  setEditingProduct(null);
-                                  setEditProfitValues({});
-                                }}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <div className="text-right">
-                                <p className="font-bold text-slate-700 dark:text-slate-300">{item.quantity} un.</p>
-                                <p className="text-xs text-slate-500">{formatCurrency(item.unit_price)} c/u</p>
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between py-3 px-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg text-sm gap-3"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-800 dark:text-slate-200 truncate">{item.product_name}</p>
+                              <p className="text-xs text-slate-500 font-mono">{item.product_sku}</p>
+                              <div className="text-xs text-slate-500 mt-1">
+                                <span>Costo: {formatCurrency(item.cost_price)} • Venta: {formatCurrency(item.selling_price)}</span>
                               </div>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-8 w-8 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20"
-                                onClick={() => {
-                                  setEditingProduct(item.product_id);
-                                  setEditProfitValues({ [item.product_id]: item.selling_price.toString() });
-                                }}
-                                title="Editar precio de venta"
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </Button>
                             </div>
-                          )}
-                        </div>
+
+                            {isEditing ? (
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={editProfitValues[item.product_id] || item.selling_price}
+                                  onChange={(e) => setEditProfitValues({
+                                    ...editProfitValues,
+                                    [item.product_id]: e.target.value
+                                  })}
+                                  className="w-24 h-8 text-xs"
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                  onClick={() => {
+                                    const newPrice = parseFloat(editProfitValues[item.product_id] || '0');
+                                    if (newPrice > 0) {
+                                      updateSellingPrice.mutate({ productId: item.product_id, newPrice });
+                                    }
+                                  }}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-slate-400 hover:text-slate-600"
+                                  onClick={() => {
+                                    setEditingProduct(null);
+                                    setEditProfitValues({});
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <div className="text-right">
+                                  <p className="font-bold text-slate-700 dark:text-slate-300">{item.quantity} un.</p>
+                                  <p className="text-xs text-slate-500">{formatCurrency(item.unit_price)} c/u</p>
+                                </div>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20"
+                                  onClick={() => {
+                                    setEditingProduct(item.product_id);
+                                    setEditProfitValues({ [item.product_id]: item.selling_price.toString() });
+                                  }}
+                                  title="Editar precio de venta"
+                                >
+                                  <Edit2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
                         );
                       })}
                     </div>

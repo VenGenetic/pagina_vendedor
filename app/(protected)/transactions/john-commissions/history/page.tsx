@@ -6,21 +6,12 @@ import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Search, Trash2, Calendar, DollarSign, Loader2, Filter } from 'lucide-react';
+import { ArrowLeft, Search, Calendar, DollarSign, Loader2, Filter, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EditTransactionModal } from '@/components/transactions/edit-transaction-modal';
 
 interface Transaction {
   id: string;
@@ -40,8 +31,7 @@ export default function JohnCommissionsHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'comisiones' | 'ventas'>('all');
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [editingTx, setEditingTx] = useState<any>(null);
 
   useEffect(() => {
     fetchTransactions();
@@ -65,27 +55,6 @@ export default function JohnCommissionsHistoryPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setTransactions(transactions.filter(t => t.id !== id));
-      setDeleteId(null);
-      alert('Transacción eliminada correctamente');
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-      alert('Error al eliminar la transacción');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   const getTransactionType = (ref: string) => {
     if (ref.includes('JOHN-COMM')) return 'Yo Comisiono';
     if (ref.includes('JOHN-VEND')) return 'Él Vende Nuestros';
@@ -93,10 +62,10 @@ export default function JohnCommissionsHistoryPage() {
   };
 
   const filteredTransactions = transactions.filter(t => {
-    const matchesSearch = 
+    const matchesSearch =
       t.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.reference_number.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     let matchesFilter = true;
     if (filterType === 'comisiones') matchesFilter = t.reference_number.includes('JOHN-COMM');
     if (filterType === 'ventas') matchesFilter = t.reference_number.includes('JOHN-VEND');
@@ -116,6 +85,11 @@ export default function JohnCommissionsHistoryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 pb-16 md:pb-24 transition-colors">
+      <EditTransactionModal
+        isOpen={!!editingTx}
+        onClose={() => setEditingTx(null)}
+        transaction={editingTx}
+      />
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm sticky top-0 z-40">
         <div className="container max-w-6xl flex h-16 items-center gap-4 px-4 mx-auto justify-between">
           <div className="flex items-center gap-4">
@@ -221,21 +195,19 @@ export default function JohnCommissionsHistoryPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white ${
-                          transaction.reference_number.includes('JOHN-COMM')
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white ${transaction.reference_number.includes('JOHN-COMM')
                             ? 'bg-gradient-to-br from-violet-600 to-violet-700'
                             : 'bg-gradient-to-br from-emerald-600 to-emerald-700'
-                        }`}>
+                          }`}>
                           {transaction.reference_number.includes('JOHN-COMM') ? '💰' : '📦'}
                         </div>
                         <div className="flex-1">
                           <p className="font-semibold text-slate-900 dark:text-slate-100">{transaction.description}</p>
                           <div className="flex flex-wrap gap-2 mt-1">
-                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                              transaction.reference_number.includes('JOHN-COMM')
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${transaction.reference_number.includes('JOHN-COMM')
                                 ? 'bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400'
                                 : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
-                            }`}>
+                              }`}>
                               {getTransactionType(transaction.reference_number)}
                             </span>
                             <span className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1">
@@ -253,21 +225,20 @@ export default function JohnCommissionsHistoryPage() {
                     </div>
                     <div className="flex items-center gap-4 ml-4">
                       <div className="text-right">
-                        <p className={`text-2xl font-bold ${
-                          transaction.reference_number.includes('JOHN-COMM')
+                        <p className={`text-2xl font-bold ${transaction.reference_number.includes('JOHN-COMM')
                             ? 'text-violet-700 dark:text-violet-400'
                             : 'text-emerald-700 dark:text-emerald-400'
-                        }`}>
+                          }`}>
                           {formatCurrency(transaction.amount)}
                         </p>
                         <p className="text-xs text-slate-600 dark:text-slate-400">Ref: {transaction.reference_number}</p>
                       </div>
                       <button
-                        onClick={() => setDeleteId(transaction.id)}
-                        className="p-2 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg text-red-600 dark:text-red-400 transition-colors"
-                        title="Eliminar transacción"
+                        onClick={() => setEditingTx(transaction)}
+                        className="p-2 hover:bg-blue-50 dark:hover:bg-blue-950/20 rounded-lg text-blue-600 dark:text-blue-400 transition-colors"
+                        title="Editar transacción"
                       >
-                        <Trash2 className="h-5 w-5" />
+                        <Edit2 className="h-5 w-5" />
                       </button>
                     </div>
                   </div>
@@ -277,35 +248,6 @@ export default function JohnCommissionsHistoryPage() {
           </div>
         )}
       </main>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar Transacción?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará la transacción del historial. No se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteId && handleDelete(deleteId)}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Eliminando...
-                </>
-              ) : (
-                'Eliminar'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
