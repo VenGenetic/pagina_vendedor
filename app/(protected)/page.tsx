@@ -40,19 +40,8 @@ export default function Dashboard() {
 
   const totalBalance = stats?.saldoTotal || 0;
 
-  // Filtrar cuentas específicas (Insensible a mayúsculas)
-  const pichincha = accounts?.find(a => a.name.toLowerCase().includes('pichincha'));
-  const guayaquil = accounts?.find(a => a.name.toLowerCase().includes('guayaquil'));
-  const efectivo = accounts?.find(a => a.name.toLowerCase().includes('efectivo'));
-  const cajaGrande = accounts?.find(a => a.name.toLowerCase().includes('caja grande'));
-
-  // Si no existen, mostramos un fallback o las primeras disponibles
-  const cuentasMostrar = [
-    { label: 'Pichincha', ...pichincha, fallback: 0 },
-    { label: 'Guayaquil', ...guayaquil, fallback: 0 },
-    { label: 'Efectivo', ...efectivo, fallback: 0 },
-    { label: 'Caja Grande', ...cajaGrande, fallback: 0 },
-  ];
+  // Mostrar todas las cuentas activas
+  const cuentasMostrar = accounts || [];
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 transition-colors">
@@ -100,13 +89,12 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-2 gap-3 mt-6">
             {cuentasMostrar.map((acc, i) => {
-              if (!acc.id) return null; // Skip if account not found
-              const colors = getAccountColor(acc.label);
+              const colors = getAccountColor(acc.name);
 
               return (
                 <Link
                   href={`/accounts/${acc.id}`}
-                  key={i}
+                  key={acc.id || i}
                   className={cn(
                     "rounded-xl p-2.5 text-center transition-all active:scale-95 flex flex-col justify-center shadow-lg border border-white/10 dark:border-white/5",
                     colors.bg,
@@ -114,7 +102,7 @@ export default function Dashboard() {
                     colors.hover
                   )}
                 >
-                  <p className={cn("text-[10px] uppercase font-bold tracking-tight mb-1 truncate opacity-90")}>{acc.label}</p>
+                  <p className={cn("text-[10px] uppercase font-bold tracking-tight mb-1 truncate opacity-90")}>{acc.name}</p>
                   <p className="text-sm font-bold truncate">
                     {formatCurrency(acc.balance || 0)}
                   </p>

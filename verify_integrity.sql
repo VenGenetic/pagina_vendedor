@@ -4,10 +4,6 @@
 
 BEGIN;
 
-RAISE NOTICE '---------------------------------------------------';
-RAISE NOTICE 'STARTING INTEGRITY VERIFICATION TESTS';
-RAISE NOTICE '---------------------------------------------------';
-
 -- 1. SETUP: Create Test Data
 DO $$
 DECLARE
@@ -20,6 +16,10 @@ DECLARE
   v_balance_b DECIMAL;
   v_stock INTEGER;
 BEGIN
+  RAISE NOTICE '---------------------------------------------------';
+  RAISE NOTICE 'STARTING INTEGRITY VERIFICATION TESTS';
+  RAISE NOTICE '---------------------------------------------------';
+
   -- Create Account A ($1000)
   INSERT INTO accounts (name, type, balance, currency, is_active)
   VALUES ('TEST_ACC_A', 'CASH', 1000, 'USD', true)
@@ -31,7 +31,8 @@ BEGIN
   RETURNING id INTO v_account_b;
 
   -- Create Product (Stock 10)
-  INSERT INTO products (name, code, selling_price, current_stock, min_stock)
+  -- Note: using 'sku' instead of 'code' based on schema definition
+  INSERT INTO products (name, sku, selling_price, current_stock, min_stock_level)
   VALUES ('TEST_PRODUCT', 'TEST001', 100, 10, 5)
   RETURNING id INTO v_product;
 
@@ -82,7 +83,6 @@ BEGIN
   ------------------------------------------------------------------------------
   -- TEST 3: DELETE SALE (UNDO)
   -- Logic: Delete Tx. Balance A should return to 1000.
-  -- Note: We manually delete the movement too to test stock restore.
   ------------------------------------------------------------------------------
   
   DELETE FROM transactions WHERE id = v_sale_tx;
@@ -158,10 +158,6 @@ BEGIN
   RAISE NOTICE 'ALL TESTS PASSED SUCCESSFULLY';
   RAISE NOTICE '---------------------------------------------------';
 
-  -- CLEANUP (Rollback so we don't spam the DB with test data)
-  -- Remove this line if you want to inspect data manually, but for automated script it's cleaner to rollback.
-  -- RAISE EXCEPTION 'Rolling back test data... (Expected)';
-  
 END $$;
 
 ROLLBACK; -- Always rollback the test transaction to keep DB clean
