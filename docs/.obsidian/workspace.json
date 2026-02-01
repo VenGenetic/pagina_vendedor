@@ -1,0 +1,233 @@
+{
+  "main": {
+    "id": "25779bbc4e4011a9",
+    "type": "split",
+    "children": [
+      {
+        "id": "20ca7163eac01534",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "b1b91dcad2893f13",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "SYSTEM_MAP/03_Components/Product_Catalog.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Product_Catalog"
+            }
+          },
+          {
+            "id": "e015a8fa811aaa5a",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ],
+        "currentTab": 1
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "2b8eeac333ea3b0e",
+    "type": "split",
+    "children": [
+      {
+        "id": "6cd2990f72057aa9",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "2da3e274b4e3c0d7",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "09f44578e82adf56",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "1618487423bed114",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "5e43cb521e22c307",
+    "type": "split",
+    "children": [
+      {
+        "id": "c837a6a39deae04f",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1600fe23e0742925",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "caa02c8def08d820",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "759c2d1e19828f88",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "3a668e78651326ed",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "9ef1efdd33cca319",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "e015a8fa811aaa5a",
+  "lastOpenFiles": [
+    "SYSTEM_MAP/04_Parts/Transaction_Workflows.md",
+    "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
+    "SYSTEM_MAP/03_Components/Transaction_History.md",
+    "SYSTEM_MAP/03_Components/Product_Catalog.md",
+    "SYSTEM_MAP/02_Assemblies/Stock_Controller.md",
+    "SYSTEM_MAP/02_Assemblies/General_Ledger.md",
+    "SYSTEM_MAP/02_Assemblies/Smart_Restock_Module.md",
+    "Templates/The Subsystem_Assembly _The Logic Hub.md",
+    "Templates/The Component (The Implementation).md",
+    "Instructions/Documentation_Protocol.md",
+    "Instructions/Untitled.md",
+    "SYSTEM_MAP/MAP.md",
+    "Instructions/SYSTEM_MAP.md",
+    "SYSTEM_MAP/00_Library/Motorcycle_Parts_ERP.md",
+    "System_Library/04_Parts_Pages.md",
+    "System_Library/03_Components_Books.md",
+    "System_Library/01_Subsystems_Sections.md",
+    "System_Library/02_Assemblies_Shelves.md",
+    "SYSTEM_MAP/04_Parts",
+    "SYSTEM_MAP/03_Components",
+    "SYSTEM_MAP/02_Assemblies",
+    "SYSTEM_MAP/01_Subsystems/Financial_Management.md",
+    "SYSTEM_MAP/01_Subsystems/Inventory_Management.md",
+    "SYSTEM_MAP/01_Subsystems",
+    "SYSTEM_MAP/00_Library",
+    "SYSTEM_MAP",
+    "Map Database.base",
+    "blueprints/T-RPC Functions.md",
+    "blueprints/S-Account Balances.md",
+    "blueprints/M-System Map.md",
+    "blueprints/M-Parts Logic.md",
+    "blueprints/M-Money Logic.md",
+    "blueprints/T-Supabase Schema.md",
+    "blueprints",
+    "Templates",
+    "Untitled.base"
+  ]
+}

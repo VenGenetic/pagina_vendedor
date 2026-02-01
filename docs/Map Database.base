@@ -1,0 +1,10 @@
+formulas:
+  Untitled: ""
+views:
+  - type: table
+    name: Table
+    order:
+      - file.name
+      - file.tags
+      - file.links
+    sort: []

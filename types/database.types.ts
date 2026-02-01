@@ -72,6 +72,7 @@ export type Database = {
           brand: string | null;
           cost_price: number;
           selling_price: number;
+          target_margin: number | null;
           current_stock: number;
           min_stock_level: number;
           max_stock_level: number;
@@ -90,6 +91,7 @@ export type Database = {
           brand?: string | null;
           cost_price?: number;
           selling_price?: number;
+          target_margin?: number | null;
           current_stock?: number;
           min_stock_level?: number;
           max_stock_level?: number;
@@ -108,6 +110,7 @@ export type Database = {
           brand?: string | null;
           cost_price?: number;
           selling_price?: number;
+          target_margin?: number | null;
           current_stock?: number;
           min_stock_level?: number;
           max_stock_level?: number;
@@ -391,6 +394,20 @@ export type Database = {
           p_description: string;
         };
         Returns: void;
+      };
+      process_restock: {
+        Args: {
+          p_product_id: string;
+          p_quantity: number;
+          p_unit_cost: number;
+        };
+        Returns: {
+          success: boolean;
+          message: string;
+          new_cost?: number;
+          new_price?: number;
+          movement_id?: string;
+        };
       };
     };
     Enums: {};

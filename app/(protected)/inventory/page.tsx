@@ -11,6 +11,7 @@ import { advancedProductSearch } from '@/lib/utils/advanced-search';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ProductDialog } from '@/components/inventory/product-dialog';
+import { RestockDialog } from '@/components/inventory/restock-dialog';
 import { inventoryService } from '@/lib/services/inventory';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -42,9 +43,9 @@ export default function InventoryPage() {
 
   // ELITE SEARCH: Fetch ALL products to perform advanced client-side filtering
   // We use pageSize: 100000 to trigger the recursive full-fetch in useProducts
-  const { data: allProductsData, isLoading } = useProducts({ 
+  const { data: allProductsData, isLoading } = useProducts({
     stockStatus: stockFilter,
-    pageSize: 100000 
+    pageSize: 100000
   });
 
   const allRawProducts = allProductsData?.data || [];
@@ -93,7 +94,7 @@ export default function InventoryPage() {
         .select('*')
         .eq('is_active', true)
         .order('name');
-      
+
       if (error) throw error;
       if (!data || data.length === 0) {
         alert('No hay productos para exportar');
@@ -102,32 +103,32 @@ export default function InventoryPage() {
 
       // Generate CSV content
       const headers = ['SKU', 'Nombre', 'Marca', 'Categoria', 'Stock Actual', 'Costo', 'Precio Venta', 'Descripcion'];
-      
+
       const csvRows = [headers.join(',')];
-      
+
       for (const product of (data as any[])) {
-         const row = [
-            product.sku,
-            product.name,
-            product.brand,
-            product.category,
-            product.current_stock,
-            product.cost_price,
-            product.selling_price,
-            product.description
-         ].map(value => {
-            const stringValue = value === null || value === undefined ? '' : String(value);
-            // Escape double quotes and wrap in double quotes if it contains comma, quote or newline
-            if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-                return `"${stringValue.replace(/"/g, '""')}"`;
-            }
-            return stringValue;
-         });
-         csvRows.push(row.join(','));
+        const row = [
+          product.sku,
+          product.name,
+          product.brand,
+          product.category,
+          product.current_stock,
+          product.cost_price,
+          product.selling_price,
+          product.description
+        ].map(value => {
+          const stringValue = value === null || value === undefined ? '' : String(value);
+          // Escape double quotes and wrap in double quotes if it contains comma, quote or newline
+          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+          }
+          return stringValue;
+        });
+        csvRows.push(row.join(','));
       }
-      
+
       const csvContent = csvRows.join('\n');
-      
+
       // Add BOM for Excel compatibility with UTF-8
       const bom = '\uFEFF';
       const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -165,9 +166,9 @@ export default function InventoryPage() {
           </div>
           <div className="flex items-center gap-3">
             <Link href="/inventory/smart-restock">
-              <Button 
-                variant="default" 
-                size="sm" 
+              <Button
+                variant="default"
+                size="sm"
                 className="gap-2 bg-violet-600 hover:bg-violet-700 text-white hidden md:flex"
               >
                 <TrendingUp className="h-4 w-4" />
@@ -175,18 +176,18 @@ export default function InventoryPage() {
               </Button>
             </Link>
             <Link href="/inventory/smart-restock" className="md:hidden">
-              <Button 
-                variant="default" 
-                size="icon" 
+              <Button
+                variant="default"
+                size="icon"
                 className="bg-violet-600 hover:bg-violet-700 text-white"
                 title="Reabastecimiento Inteligente"
               >
                 <TrendingUp className="h-4 w-4" />
               </Button>
             </Link>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.products })}
               title="Refrescar Inventario"
               className="gap-2 hidden md:flex text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -194,9 +195,9 @@ export default function InventoryPage() {
               <RefreshCw className="h-4 w-4" />
               <span>Refrescar</span>
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={handleExportCSV}
               title="Exportar Inventario a CSV"
               className="gap-2 hidden md:flex text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -204,18 +205,18 @@ export default function InventoryPage() {
               <Download className="h-4 w-4" />
               <span>Exportar</span>
             </Button>
-             <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.products })}
               title="Refrescar Inventario"
               className="md:hidden text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
-             <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               onClick={handleExportCSV}
               title="Exportar Inventario a CSV"
               className="md:hidden text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700"
@@ -230,46 +231,46 @@ export default function InventoryPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Filters Area */}
         <div className="sticky top-16 bg-slate-50/95 dark:bg-slate-950/95 z-40 py-2 -mx-4 px-4 sm:mx-0 sm:px-0 backdrop-blur-sm">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <Input
-                  placeholder="Buscar por nombre, SKU, marca..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setPage(1); 
-                  }}
-                  className="w-full pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm focus-visible:ring-indigo-500 rounded-lg"
-                />
-              </div>
-              
-              <Tabs defaultValue="all" value={stockFilter} onValueChange={(val) => {
-                setStockFilter(val as any);
-                setPage(1);
-              }} className="w-full md:w-auto">
-                <TabsList className="grid w-full grid-cols-4 bg-slate-200 dark:bg-slate-800 p-1 rounded-lg">
-                  <TabsTrigger value="all" className="text-xs data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">Todos</TabsTrigger>
-                  <TabsTrigger value="in_stock" className="text-xs data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">En Stock</TabsTrigger>
-                  <TabsTrigger value="low_stock" className="text-xs data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">Bajo</TabsTrigger>
-                  <TabsTrigger value="out_of_stock" className="text-xs data-[state=active]:text-rose-600 dark:data-[state=active]:text-rose-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">Agotado</TabsTrigger>
-                </TabsList>
-              </Tabs>
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                placeholder="Buscar por nombre, SKU, marca..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full pl-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm focus-visible:ring-indigo-500 rounded-lg"
+              />
             </div>
+
+            <Tabs defaultValue="all" value={stockFilter} onValueChange={(val) => {
+              setStockFilter(val as any);
+              setPage(1);
+            }} className="w-full md:w-auto">
+              <TabsList className="grid w-full grid-cols-4 bg-slate-200 dark:bg-slate-800 p-1 rounded-lg">
+                <TabsTrigger value="all" className="text-xs data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">Todos</TabsTrigger>
+                <TabsTrigger value="in_stock" className="text-xs data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">En Stock</TabsTrigger>
+                <TabsTrigger value="low_stock" className="text-xs data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">Bajo</TabsTrigger>
+                <TabsTrigger value="out_of_stock" className="text-xs data-[state=active]:text-rose-600 dark:data-[state=active]:text-rose-400 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900">Agotado</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
 
         {/* Low Stock Alert - Refined Design */}
         {(stockFilter === 'all' || stockFilter === 'low_stock') && lowStockProducts && lowStockProducts.length > 0 && !searchTerm && page === 1 && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 flex items-start gap-4 shadow-sm">
             <div className="p-2 bg-amber-100 dark:bg-amber-900/50 rounded-lg shrink-0">
-               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+              <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
             </div>
             <div className="flex-1">
               <h3 className="font-semibold text-amber-900 dark:text-amber-200 text-sm mb-1">
                 Atención necesaria: {lowStockProducts.length} productos con stock bajo
               </h3>
               <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mb-2">
-                 Se recomienda reabastecer estos productos pronto para evitar perder ventas.
+                Se recomienda reabastecer estos productos pronto para evitar perder ventas.
               </p>
               <div className="flex flex-wrap gap-2">
                 {(lowStockProducts || []).slice(0, 4).map((product) => (
@@ -278,11 +279,11 @@ export default function InventoryPage() {
                     <span className="ml-1.5 font-bold text-amber-600 dark:text-amber-500">Q: {product.current_stock}</span>
                   </span>
                 ))}
-                  {lowStockProducts.length > 4 && (
-                    <span className="inline-flex items-center px-2 py-1 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-                      +{lowStockProducts.length - 4} más...
-                    </span>
-                  )}
+                {lowStockProducts.length > 4 && (
+                  <span className="inline-flex items-center px-2 py-1 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                    +{lowStockProducts.length - 4} más...
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -309,136 +310,155 @@ export default function InventoryPage() {
                 return (
                   <div
                     key={product.id}
-                    className={`group relative bg-white dark:bg-slate-900 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 duration-300 flex flex-col ${
-                        outOfStock 
-                        ? 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50' 
-                        : 'border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700'
-                    }`}
+                    className={`group relative bg-white dark:bg-slate-900 rounded-2xl border transition-all hover:shadow-lg hover:-translate-y-0.5 duration-300 flex flex-col ${outOfStock
+                      ? 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50'
+                      : 'border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700'
+                      }`}
                   >
                     {/* Status Badge */}
                     <div className="absolute top-3 left-3 z-10">
-                        {outOfStock ? (
-                           <span className="px-2 py-1 rounded-md bg-slate-900 text-white text-[10px] font-bold shadow-sm uppercase tracking-wide">Agotado</span>
-                        ) : lowStock ? (
-                            <span className="px-2 py-1 rounded-md bg-amber-500 text-white text-[10px] font-bold shadow-sm uppercase tracking-wide animate-pulse">Stock Bajo</span>
-                        ) : null}
+                      {outOfStock ? (
+                        <span className="px-2 py-1 rounded-md bg-slate-900 text-white text-[10px] font-bold shadow-sm uppercase tracking-wide">Agotado</span>
+                      ) : lowStock ? (
+                        <span className="px-2 py-1 rounded-md bg-amber-500 text-white text-[10px] font-bold shadow-sm uppercase tracking-wide animate-pulse">Stock Bajo</span>
+                      ) : null}
                     </div>
 
                     <div className="p-4 flex-1">
                       {/* Header Section with Image & Price */}
                       <div className="flex gap-4 mb-3">
-                          <div className={`shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center ${outOfStock ? 'opacity-50 grayscale' : ''}`}>
-                            {product.image_url ? (
-                                <img
-                                src={product.image_url}
-                                alt={product.name}
-                                className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <Package className="h-8 w-8 text-slate-300 dark:text-slate-600" />
-                            )}
+                        <div className={`shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center ${outOfStock ? 'opacity-50 grayscale' : ''}`}>
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Package className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0 flex flex-col justify-start">
+                          <div>
+                            <h4 className={`font-semibold text-sm leading-tight mb-1 ${outOfStock ? 'text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
+                              {product.name}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 font-mono truncate bg-slate-50 dark:bg-slate-800/50 inline-block px-1.5 py-0.5 rounded">
+                              {product.sku}
+                            </p>
                           </div>
-                          
-                          <div className="flex-1 min-w-0 flex flex-col justify-start">
-                             <div>
-                                <h4 className={`font-semibold text-sm leading-tight mb-1 ${outOfStock ? 'text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                                    {product.name}
-                                </h4>
-                                <p className="text-[10px] text-slate-400 font-mono truncate bg-slate-50 dark:bg-slate-800/50 inline-block px-1.5 py-0.5 rounded">
-                                    {product.sku}
-                                </p>
-                             </div>
-                             <div className="mt-auto pt-2 text-right">
-                                <span className={`block text-lg font-bold leading-none ${outOfStock ? 'text-slate-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
-                                    {formatCurrency(product.selling_price)}
-                                </span>
-                                <span className="text-[10px] text-slate-400 font-medium">
-                                    Costo: {formatCurrency(product.cost_price)}
-                                </span>
-                             </div>
+                          <div className="mt-auto pt-2 text-right">
+                            <span className={`block text-lg font-bold leading-none ${outOfStock ? 'text-slate-400' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                              {formatCurrency(product.selling_price)}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              Costo: {formatCurrency(product.cost_price)}
+                            </span>
                           </div>
+                        </div>
                       </div>
 
                       {/* Stock Control */}
                       <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                          <div className="flex items-center justify-between mb-2">
-                             <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                <span>Disponible:</span>
-                                <span className={outOfStock ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-900 dark:text-slate-200 font-bold'}>
-                                    {product.current_stock}
-                                </span>
-                             </div>
-                             <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
-                                  onClick={() => handleUpdateStock(product, -1)}
-                                  disabled={product.current_stock <= 0}
-                                >
-                                  <Minus className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400"
-                                  onClick={() => handleUpdateStock(product, 1)}
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </Button>
-                             </div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                            <span>Disponible:</span>
+                            <span className={outOfStock ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-slate-900 dark:text-slate-200 font-bold'}>
+                              {product.current_stock}
+                            </span>
                           </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-lg bg-slate-50 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400"
+                              onClick={() => handleUpdateStock(product, -1)}
+                              disabled={product.current_stock <= 0}
+                            >
+                              <Minus className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400"
+                              onClick={() => handleUpdateStock(product, 1)}
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
 
-                          {/* Progress bar */}
-                          <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                             <div
-                                className={`h-full rounded-full transition-all duration-500 ${
-                                  outOfStock ? 'bg-slate-300 dark:bg-slate-700' :
-                                  lowStock ? 'bg-amber-500' :
-                                  'bg-emerald-500'
-                                }`}
-                                style={{ width: `${Math.min(100, Math.max(5, stockPercentage))}%` }}
-                             />
-                          </div>
+                        {/* Progress bar */}
+                        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${outOfStock ? 'bg-slate-300 dark:bg-slate-700' :
+                              lowStock ? 'bg-amber-500' :
+                                'bg-emerald-500'
+                              }`}
+                            style={{ width: `${Math.min(100, Math.max(5, stockPercentage))}%` }}
+                          />
+                        </div>
                       </div>
                     </div>
 
                     {/* Footer / Meta Data */}
                     <div className="px-4 py-3 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 rounded-b-2xl flex items-center justify-between">
-                         <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[50%]">
-                             {product.category || 'Sin categoría'}
-                             {product.brand && <span className="mx-1 opacity-50">•</span>}
-                             {product.brand}
-                         </div>
-                         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <ProductDialog product={product} /> 
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[50%]">
+                        {product.category || 'Sin categoría'}
+                        {product.brand && <span className="mx-1 opacity-50">•</span>}
+                        {product.brand}
+                      </div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <RestockDialog
+                          product={product}
+                          trigger={
                             <button
-                                onClick={() => setDeleteProduct(product)}
-                                disabled={product.current_stock > 0}
-                                title={product.current_stock > 0 ? "No se puede eliminar productos con stock" : "Eliminar producto"}
-                                className={`p-1 transition-colors ${product.current_stock > 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-rose-600'}`}
+                              title="Surtir Inventario"
+                              className="p-1 text-slate-400 hover:text-violet-600 transition-colors"
                             >
-                                <Trash2 className="h-4 w-4" />
+                              <TrendingUp className="h-4 w-4" />
                             </button>
-                         </div>
-                         {/* Show simplified actions on mobile always */}
-                         <div className="flex md:hidden items-center gap-2">
-                             <ProductDialog product={product} />
-                             {product.current_stock <= 0 && (
-                                <button
-                                    onClick={() => setDeleteProduct(product)}
-                                    className="text-slate-400 p-1"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </button>
-                             )}
-                         </div>
+                          }
+                        />
+                        <ProductDialog product={product} />
+                        <button
+                          onClick={() => setDeleteProduct(product)}
+                          disabled={product.current_stock > 0}
+                          title={product.current_stock > 0 ? "No se puede eliminar productos con stock" : "Eliminar producto"}
+                          className={`p-1 transition-colors ${product.current_stock > 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-400 hover:text-rose-600'}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {/* Show simplified actions on mobile always */}
+                      <div className="flex md:hidden items-center gap-2">
+                        <RestockDialog
+                          product={product}
+                          trigger={
+                            <button
+                              className="text-slate-400 p-1"
+                            >
+                              <TrendingUp className="h-4 w-4" />
+                            </button>
+                          }
+                        />
+                        <ProductDialog product={product} />
+                        {product.current_stock <= 0 && (
+                          <button
+                            onClick={() => setDeleteProduct(product)}
+                            className="text-slate-400 p-1"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-            
+
             {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-4 py-8 border-t border-dashed border-slate-200 dark:border-slate-800 mt-8">
@@ -451,10 +471,10 @@ export default function InventoryPage() {
                   <ArrowLeft className="h-4 w-4 mr-2" /> Anterior
                 </Button>
                 <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Página <span className="text-indigo-600 dark:text-indigo-400 font-bold">{page}</span> de {totalPages}
+                  Página <span className="text-indigo-600 dark:text-indigo-400 font-bold">{page}</span> de {totalPages}
                 </div>
                 <Button
-                   variant="ghost"
+                  variant="ghost"
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
                   className="w-32 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -463,22 +483,22 @@ export default function InventoryPage() {
                 </Button>
               </div>
             )}
-            
+
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 bg-white dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 text-center px-4">
             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-                <Package className="h-8 w-8 text-slate-400" />
+              <Package className="h-8 w-8 text-slate-400" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">
               No se encontraron productos
             </h3>
             <p className="text-slate-500 dark:text-slate-400 text-sm max-w-sm mx-auto mb-6">
-              {searchTerm 
+              {searchTerm
                 ? `No hay resultados para "${searchTerm}". Intenta con otros términos.`
-                : stockFilter !== 'all' 
-                ? 'No hay productos en esta categoría.'
-                : 'Tu inventario parece vacío. Agrega tu primer producto para comenzar.'
+                : stockFilter !== 'all'
+                  ? 'No hay productos en esta categoría.'
+                  : 'Tu inventario parece vacío. Agrega tu primer producto para comenzar.'
               }
             </p>
             {stockFilter !== 'all' ? (
@@ -486,7 +506,7 @@ export default function InventoryPage() {
                 Limpiar filtros
               </Button>
             ) : (
-                 <ProductDialog />
+              <ProductDialog />
             )}
           </div>
         )}
@@ -498,7 +518,7 @@ export default function InventoryPage() {
             <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
             <AlertDialogDescription>
               Estás a punto de eliminar <span className="font-bold text-slate-900 dark:text-slate-100 mx-1">{deleteProduct?.name}</span>.
-              <br/>Esta acción eliminará el registro del inventario pero mantendrá el historial de transacciones asociado si existe.
+              <br />Esta acción eliminará el registro del inventario pero mantendrá el historial de transacciones asociado si existe.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
