@@ -329,28 +329,49 @@ export async function createIncome(input: EntradaCrearIngreso) {
 
 /**
  * Delete a commission transaction and its associated costs (expenses)
+ * NOW: Soft Reversal
  */
 export async function deleteCommission(transactionId: string) {
   try {
-    // 1. Delete associated expenses first (referencing the main income ID)
-    const { error: errorExpenses } = await supabase
+    const user = await getCurrentUser();
+
+    // 1. Find the main transaction to get reference number (REL- or ENV-)
+    const { data: mainTx, error: fetchError } = await supabase
       .from('transactions')
-      .delete()
-      .or(`reference_number.eq.REL-${transactionId},reference_number.eq.ENV-${transactionId}`);
+      .select('reference_number, id')
+      .eq('id', transactionId)
+      .single();
 
-    if (errorExpenses) throw errorExpenses;
+    if (fetchError) throw fetchError;
+    if (!mainTx) throw new Error('Transaction not found');
 
-    // 2. Delete the main income transaction
-    const { error: errorMain } = await supabase
+    // 2. Find associated cost expenses
+    const { data: associatedTxs, error: assocError } = await supabase
       .from('transactions')
-      .delete()
-      .eq('id', transactionId);
+      .select('id')
+      .or(`reference_number.eq.REL-${(mainTx as any).id},reference_number.eq.ENV-${(mainTx as any).id}`);
 
-    if (errorMain) throw errorMain;
+    if (assocError) throw assocError;
+
+    // 3. Revert associated expenses
+    for (const tx of (associatedTxs as any[]) || []) {
+      await supabase.rpc('revert_transaction_soft', {
+        p_transaction_id: tx.id,
+        p_user_id: user.id
+      } as any);
+    }
+
+    // 4. Revert main transaction
+    const { error: revertError } = await supabase.rpc('revert_transaction_soft', {
+      p_transaction_id: transactionId,
+      p_user_id: user.id
+    } as any);
+
+    if (revertError) throw revertError;
 
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting commission:', error);
+    console.error('Error deleting/reverting commission:', error);
     return {
       success: false,
       error: error.message || 'Failed to delete commission',
@@ -359,12 +380,15 @@ export async function deleteCommission(transactionId: string) {
 }
 
 /**
- * Delete a Sale and all associated records (Inventory movements, Transaction, Items)
- * This reverts the stock deduction and the money income.
+ * Revert a Sale
+ * Finds all transactions linked to the sale and reverses them.
+ * The RPC handles inventory and sale status.
  */
 export async function deleteSale(saleId: string) {
   try {
-    // 1. Get Sale to find sale_number for linking transactions
+    const user = await getCurrentUser();
+
+    // 1. Get Sale to find sale_number
     const { data: sale, error: saleFetchError } = await supabase
       .from('sales')
       .select('sale_number')
@@ -374,96 +398,72 @@ export async function deleteSale(saleId: string) {
     if (saleFetchError) throw saleFetchError;
     const saleData = sale as any;
 
-    // 2. Get Inventory Movement IDs from sale items to delete them
-    const { data: items, error: itemsError } = await supabase
-      .from('sale_items')
-      .select('inventory_movement_id')
-      .eq('sale_id', saleId);
-
-    if (itemsError) throw itemsError;
-
-    const movementIds = (items || [])
-      .map((i: any) => i.inventory_movement_id)
-      .filter((id: any) => id !== null) as string[];
-
-    // 3. Delete Inventory Movements (Stock should be restored by DB triggers)
-    if (movementIds.length > 0) {
-      const { error: moveError } = await supabase
-        .from('inventory_movements')
-        .delete()
-        .in('id', movementIds);
-      if (moveError) throw moveError;
+    if (!saleData?.sale_number) {
+      throw new Error("Sale number not found");
     }
 
-    // 4. Delete Transactions (Income and potentially Shipping Expense)
-    // Linked via reference_number
-    if (saleData?.sale_number) {
-      const { error: txError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('reference_number', saleData.sale_number);
-      if (txError) throw txError;
-    }
-
-    // 5. Delete the Sale itself (Cascades to sale_items)
-    const { error: deleteError } = await supabase
-      .from('sales')
-      .delete()
-      .eq('id', saleId);
-
-    if (deleteError) throw deleteError;
-
-    return { success: true };
-  } catch (error: any) {
-    console.error('Error deleting sale:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-/**
- * Delete a Purchase Transaction
- * Reverts stock addition and money expense.
- */
-export async function deletePurchase(transactionId: string) {
-  try {
-    // 1. Delete associated Inventory Movements (Stock should be restored by DB triggers)
-    // Purchases store the transaction_id in the movement
-    const { error: moveError } = await supabase
-      .from('inventory_movements')
-      .delete()
-      .eq('transaction_id', transactionId);
-
-    if (moveError) throw moveError;
-
-    // 2. Delete the Transaction
-    const { error: txError } = await supabase
+    // 2. Find all transactions linked to this sale (Income + Shipping)
+    const { data: transactions, error: txError } = await supabase
       .from('transactions')
-      .delete()
-      .eq('id', transactionId);
+      .select('id')
+      .eq('reference_number', saleData.sale_number);
 
     if (txError) throw txError;
 
+    // 3. Revert each transaction
+    for (const tx of (transactions as any[]) || []) {
+      const { error: rpcError } = await supabase.rpc('revert_transaction_soft', {
+        p_transaction_id: tx.id,
+        p_user_id: user.id
+      } as any);
+      if (rpcError) throw rpcError;
+    }
+
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting purchase:', error);
+    console.error('Error reverting sale:', error);
     return { success: false, error: error.message };
   }
 }
 
 /**
- * Delete a generic Expense Transaction
+ * Revert a Purchase
+ */
+export async function deletePurchase(transactionId: string) {
+  try {
+    const user = await getCurrentUser();
+
+    // Call RPC to revert
+    const { error } = await supabase.rpc('revert_transaction_soft', {
+      p_transaction_id: transactionId,
+      p_user_id: user.id
+    } as any);
+
+    if (error) throw error;
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error reverting purchase:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Revert a generic Expense
  */
 export async function deleteExpense(transactionId: string) {
   try {
-    const { error } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', transactionId);
+    const user = await getCurrentUser();
+
+    const { error } = await supabase.rpc('revert_transaction_soft', {
+      p_transaction_id: transactionId,
+      p_user_id: user.id
+    } as any);
 
     if (error) throw error;
     return { success: true };
   } catch (error: any) {
-    console.error('Error deleting expense:', error);
+    console.error('Error reverting expense:', error);
     return { success: false, error: error.message };
   }
 }

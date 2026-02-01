@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useDeletePurchase } from '@/hooks/use-queries';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trash2, Package, Loader2, AlertTriangle, Edit2, X, Check } from 'lucide-react';
+import { Trash2, AlertTriangle, X, Check, Edit2, ArrowLeft, Package, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ import { EditTransactionModal } from '@/components/transactions/edit-transaction
 export default function PurchaseHistoryPage() {
   const queryClient = useQueryClient();
   const [expandedBatch, setExpandedBatch] = useState<string | null>(null);
+  const { mutate: deletePurchase, isPending: isDeleting } = useDeletePurchase();
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
   const [editProfitValues, setEditProfitValues] = useState<Record<string, string>>({});
 
@@ -177,61 +179,7 @@ export default function PurchaseHistoryPage() {
     },
   });
 
-  const deleteBatch = useMutation({
-    mutationFn: async (batch: PurchaseBatch) => {
-      // 1. Get all movement IDs
-      const movementIds = batch.items.map(item => item.movement_id);
 
-      // 2. Revert stock for each product
-      for (const item of batch.items) {
-        const { data: product } = await supabase
-          .from('products')
-          .select('current_stock')
-          .eq('id', item.product_id)
-          .single();
-
-        if (product) {
-          const productData = product as any;
-          const newStock = Math.max(0, (productData.current_stock || 0) - item.quantity);
-          await (supabase as any)
-            .from('products')
-            .update({ current_stock: newStock })
-            .eq('id', item.product_id);
-        }
-      }
-
-      // 3. Delete inventory movements
-      const { error: movError } = await supabase
-        .from('inventory_movements')
-        .delete()
-        .in('id', movementIds);
-
-      if (movError) throw movError;
-
-      // 4. Delete transaction if exists
-      if (batch.transaction_id) {
-        const { error: txError } = await supabase
-          .from('transactions')
-          .delete()
-          .eq('id', batch.transaction_id);
-
-        if (txError) throw txError;
-      }
-
-      return true;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['purchase-batches'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      alert('Ingreso revertido exitosamente');
-    },
-    onError: (error) => {
-      console.error('Error deleting batch:', error);
-      alert('Error al revertir el ingreso');
-    },
-  });
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
@@ -294,25 +242,58 @@ export default function PurchaseHistoryPage() {
                       </div>
                     </div>
 
-                    {/* Edit Button Replacement for Revert */}
+                    {/* Edit and Anular Buttons */}
                     {!batch.is_free_entry && batch.transaction_id && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        onClick={() => {
-                          setEditingTx({
-                            id: batch.transaction_id,
-                            description: batch.description,
-                            amount: batch.total_cost,
-                            notes: batch.transaction_notes || '',
-                            reference_number: batch.transaction_reference_number || ''
-                          });
-                        }}
-                      >
-                        <Edit2 className="w-4 h-4 mr-2" />
-                        Editar
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-slate-500 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          onClick={() => {
+                            setEditingTx({
+                              id: batch.transaction_id,
+                              description: batch.description,
+                              amount: batch.total_cost,
+                              notes: batch.transaction_notes || '',
+                              reference_number: batch.transaction_reference_number || ''
+                            });
+                          }}
+                        >
+                          <Edit2 className="w-4 h-4 mr-2" />
+                          Editar
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              disabled={isDeleting}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Anular
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                            <AlertDialogHeader>
+                              <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Anular esta compra?</AlertDialogTitle>
+                              <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+                                Esta acción revertirá la transacción financiera y ajustará el inventario (se reducirá el stock ingresado).
+                                La transacción quedará registrada como anulada.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700">Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deletePurchase(batch.transaction_id!)}
+                                className="bg-red-600 text-white hover:bg-red-700"
+                              >
+                                {isDeleting ? 'Anulando...' : 'Sí, anular'}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
                     )}
                   </div>
                 </CardHeader>

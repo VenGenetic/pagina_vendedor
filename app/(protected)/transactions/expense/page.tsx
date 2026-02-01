@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAccounts, useCreateExpense, useRecentExpenses } from '@/hooks/use-queries';
+import { useAccounts, useCreateExpense, useRecentExpenses, useDeleteExpense } from '@/hooks/use-queries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Clock, Loader2, Edit2 } from 'lucide-react';
+import { ArrowLeft, Clock, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { EditTransactionModal } from '@/components/transactions/edit-transaction-modal';
@@ -16,6 +17,7 @@ export default function NewExpensePage() {
   const router = useRouter();
   const { data: accounts } = useAccounts();
   const createExpense = useCreateExpense();
+  const { mutate: deleteExpense, isPending: isDeleting } = useDeleteExpense();
 
   // History Hooks
   const { data: recentExpenses, isLoading: loadingHistory } = useRecentExpenses();
@@ -245,6 +247,36 @@ export default function NewExpensePage() {
                           <Edit2 className="w-3 h-3 mr-1" />
                           Editar
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              disabled={isDeleting}
+                            >
+                              <Trash2 className="w-3 h-3 mr-1" />
+                              Anular
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Anular este gasto?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta acción revertirá la transacción financiera. El gasto quedará registrado como anulado.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteExpense(tx.id)}
+                                className="bg-red-600 text-white hover:bg-red-700"
+                              >
+                                {isDeleting ? 'Anulando...' : 'Sí, anular'}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
 
@@ -263,7 +295,7 @@ export default function NewExpensePage() {
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }

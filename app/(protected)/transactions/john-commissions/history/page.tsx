@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
+import { useDeleteCommission } from '@/hooks/use-queries';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Search, Calendar, DollarSign, Loader2, Filter, Edit2 } from 'lucide-react';
+import { ArrowLeft, Search, Calendar, DollarSign, Loader2, Filter, Edit2, Trash2 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +34,7 @@ export default function JohnCommissionsHistoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'comisiones' | 'ventas'>('all');
   const [editingTx, setEditingTx] = useState<any>(null);
+  const { mutate: deleteCommission, isPending: isDeleting } = useDeleteCommission();
 
   useEffect(() => {
     fetchTransactions();
@@ -196,8 +199,8 @@ export default function JohnCommissionsHistoryPage() {
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-white ${transaction.reference_number.includes('JOHN-COMM')
-                            ? 'bg-gradient-to-br from-violet-600 to-violet-700'
-                            : 'bg-gradient-to-br from-emerald-600 to-emerald-700'
+                          ? 'bg-gradient-to-br from-violet-600 to-violet-700'
+                          : 'bg-gradient-to-br from-emerald-600 to-emerald-700'
                           }`}>
                           {transaction.reference_number.includes('JOHN-COMM') ? '💰' : '📦'}
                         </div>
@@ -205,8 +208,8 @@ export default function JohnCommissionsHistoryPage() {
                           <p className="font-semibold text-slate-900 dark:text-slate-100">{transaction.description}</p>
                           <div className="flex flex-wrap gap-2 mt-1">
                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${transaction.reference_number.includes('JOHN-COMM')
-                                ? 'bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400'
-                                : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
+                              ? 'bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400'
+                              : 'bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400'
                               }`}>
                               {getTransactionType(transaction.reference_number)}
                             </span>
@@ -226,8 +229,8 @@ export default function JohnCommissionsHistoryPage() {
                     <div className="flex items-center gap-4 ml-4">
                       <div className="text-right">
                         <p className={`text-2xl font-bold ${transaction.reference_number.includes('JOHN-COMM')
-                            ? 'text-violet-700 dark:text-violet-400'
-                            : 'text-emerald-700 dark:text-emerald-400'
+                          ? 'text-violet-700 dark:text-violet-400'
+                          : 'text-emerald-700 dark:text-emerald-400'
                           }`}>
                           {formatCurrency(transaction.amount)}
                         </p>
@@ -240,6 +243,35 @@ export default function JohnCommissionsHistoryPage() {
                       >
                         <Edit2 className="h-5 w-5" />
                       </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            className="p-2 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg text-red-600 dark:text-red-400 transition-colors"
+                            title="Anular transacción"
+                            disabled={isDeleting}
+                          >
+                            <Trash2 className="h-5 w-5" />
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Anular esta transacción?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+                              Esta acción revertirá la transacción financiera (Comisión o Venta Externa).
+                              Se creará un registro de anulación.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100">Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteCommission(transaction.id)}
+                              className="bg-red-600 text-white hover:bg-red-700"
+                            >
+                              {isDeleting ? 'Anulando...' : 'Sí, anular'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </CardContent>
