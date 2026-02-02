@@ -15,8 +15,9 @@ The **Motorcycle Parts ERP** is the central system for managing the business ope
 - **Children**:
     - [[Inventory_Management]]
     - [[Financial_Management]]
+    - [[Sales_and_Customers]]
 
 ## Core Responsibilities
 1.  **Inventory Control**: Tracking stock levels, product details, and movements.
-2.  **Financial Ledger**: Recording income, expenses, and account balances via double-entry principles.
+2.  **Financial Ledger**: Recording income, expenses, and account balances via **Double-Entry Bookkeeping** and **Immutable Ledger** principles.
 3.  **Sales & Customers**: Managing the point-of-sale and customer database.

@@ -5,7 +5,9 @@ export type Producto = Database['public']['Tables']['products']['Row'];
 export type ProductoInsertar = Database['public']['Tables']['products']['Insert'];
 export type ProductoActualizar = Database['public']['Tables']['products']['Update'];
 
-export type Cuenta = Database['public']['Tables']['accounts']['Row'];
+export type Cuenta = Database['public']['Tables']['accounts']['Row'] & {
+  is_nominal?: boolean;
+};
 export type CuentaInsertar = Database['public']['Tables']['accounts']['Insert'];
 export type CuentaActualizar = Database['public']['Tables']['accounts']['Update'];
 

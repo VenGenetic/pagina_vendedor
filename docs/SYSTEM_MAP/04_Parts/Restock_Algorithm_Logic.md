@@ -8,60 +8,36 @@ tags: [inventory, algorithm, logic]
 # Restock Algorithm Logic
 
 ## Description
-The **Restock Algorithm Logic** determines the optimal purchasing quantities to maintain inventory health without overstocking. It has evolved from a static Min/Max model to a dynamic **Weighted Velocity** model.
+The **Restock Algorithm Logic** is the mathematical engine behind inventory recommendations. It moves beyond simple static thresholds to a dynamic model based on "Sales Velocity."
 
 ## Hierarchy
 - **Parent**: [[Smart_Restock_Module]]
 - **Children**: None
 
-## Core Principles
-
-### 1. Weighted Velocity Model
-Instead of simple averages, the system calculates a "Sales Velocity" that weighs recent sales more heavily than older ones.
-- **Goal**: Detect trends (e.g., sudden spikes in demand) faster than a simple 30-day average.
-- **Reference**: `view_smart_replenishment` in Database.
-
-### 2. Time Constants
-The algorithm relies on specific time-based constants to calculate needs:
-- **Lead Time**: `2 Days` (Time from order to shelf).
-- **Cycle Time**: `7 Days` (Frequency of restocking).
-
 ## The Formula
+### 1. Weighted Velocity
+Instead of a simple average, we weight recent sales more heavily to detect trends.
+- **Periods**:
+    - `Velocity_7_Day` (Weight: 0.5)
+    - `Velocity_30_Day` (Weight: 0.3)
+    - `Velocity_90_Day` (Weight: 0.2)
+- **Calculation**:
+    `Daily_Velocity = (Avg_7 * 0.5) + (Avg_30 * 0.3) + (Avg_90 * 0.2)`
 
-### Step 1: Calculate Reorder Point
-When should we buy more?
-> $$ ReorderPoint = (Velocity \times LeadTime) + SafetyStock $$
+### 2. Reorder Point (Dynamic Min)
+When should we order?
+- `Reorder_Point = (Daily_Velocity * Lead Time) + Safety_Stock`
+- *Note*: If this calculated value is lower than the product's hard-coded `min_stock_level`, the system respects the higher of the two.
 
-- **Velocity**: Daily sales rate.
-- **Lead Time**: 2 days.
-- **Safety Stock**: Dynamic buffer based on velocity variance (calculated in View).
+### 3. Reorder Quantity (Dynamic Max)
+How much should we order?
+- `Target_Stock = Daily_Velocity * Days_To_Cover` (e.g., 45 days)
+- `Order_Quantity = Target_Stock - Current_Stock`
 
-### Step 2: Determine Status
-The system assigns a triage status to every product:
-
-| Status | Condition | Meaning |
-| :--- | :--- | :--- |
-| **CRITICAL** | `Stock <= Velocity` | Less than 1 day of coverage. Stockout imminent. |
-| **REORDER** | `Stock <= ReorderPoint` | Below safety threshold. Buy now to avoid breakdown. |
-| **OVERSTOCK** | `Stock > MaxCap (20)` | Too much inventory on shelf. |
-| **OK** | `Stock > ReorderPoint` | Healthy levels. |
-
-### Step 3: Calculate Buy Quantity
-How much should we buy?
-- **Ideal Target**: `ReorderPoint + (Velocity * CycleTime)`
-- **Raw Need**: `Ideal Target - Current Stock`
-
-### Step 4: Logic Capping (The "Shelf Limit")
-We enforce a hard physical limit to prevent shelf overcrowding and capital tie-up.
-- **MAX_SHELF_CAP**: `20 Units`.
-- **Space Available**: `20 - Current Stock`.
-- **Final Buy**: `Math.min(Raw Need, Space Available)`.
-
-> [!IMPORTANT]
-> **Constraint**: We *never* suggest buying more than what fits on the shelf (20 units), regardless of high velocity. This forces frequent, smaller restocks.
-
-## Pricing Logic (Autopilot)
-If a `target_margin` is set for a product, the system automatically recalculates the selling price upon restock entry:
-> $$ Price = \frac{Cost}{1 - Margin} $$
-
-*Example: Cost $10, Margin 30% -> Price $14.28*
+## Logic Flow (SQL RPC)
+1.  **Scope**: `process_restock()` function.
+2.  **Input**: User confirms accepted restock list.
+3.  **Action**:
+    -   Creates `inventory_movements` (Type: IN, Reason: PURCHASE).
+    -   Creates `transactions` (Type: EXPENSE, Category: RESTOCK).
+    -   Auto-updates `selling_price` if `target_margin` logic is enabled.

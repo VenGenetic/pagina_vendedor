@@ -25,6 +25,7 @@ export function useAccounts() {
         .from('accounts')
         .select('*')
         .eq('is_active', true)
+        .not('is_nominal', 'eq', true) // Hide Master Accounts (DÉBITOS/CRÉDITOS) from UI
         .order('name');
 
       if (error) throw error;

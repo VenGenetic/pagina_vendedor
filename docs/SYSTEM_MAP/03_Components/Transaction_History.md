@@ -8,7 +8,7 @@ tags: [finance, data]
 # Transaction History
 
 ## Description
-The **Transaction History** is the chronological ledger of all financial movements. It is the raw data used to construct the General Ledger's state.
+The **Transaction History** component is the immutable record of all financial movements. It is the "Journal" in accounting terms. It now supports **Double-Entry** grouping, ensuring that every debit has a credit.
 
 ## Hierarchy
 - **Parent**: [[General_Ledger]]
@@ -17,9 +17,14 @@ The **Transaction History** is the chronological ledger of all financial movemen
 ## Data Structure
 - **Entity**: `transactions` table.
 - **Key Fields**:
-    - `type` (Enum: 'INCOME', 'EXPENSE')
-    - `amount` (Decimal 12,2, constraint > 0)
-    - `account_id` (FK -> accounts)
+    - `id` (UUID)
+    - `group_id` (UUID) - **New**: Links related splits (e.g., Sale + Cost of Goods Sold).
+    - `type` (INCOME, EXPENSE)
+    - `category` (SALE, RESTOCK, ADJUSTMENT, REFUND, OPERATIONAL_EXPENSE)
+    - `amount` (Decimal, always positive)
+    - `account_id` (FK -> Accounts)
+    - `is_reversal` (Boolean) - **New**: Flags corrective entries.
+    - `reversal_of_id` (UUID) - **New**: Links to the original transaction ID being reversed.
     - `transaction_date` (Indexed DESC)
     - `payment_method` (Enum: 'CASH', 'CARD', 'TRANSFER', 'CHECK', 'OTHER')
     - `inventory_movement_id` (Optional FK -> inventory_movements)

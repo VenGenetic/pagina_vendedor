@@ -24,27 +24,27 @@ The **Financial Management** subsystem governs the flow of money. It enforces th
 3.  **Auditability**: Providing a clear trail of where money came from and went.
 4.  **Balance Automation**: The `trigger_update_account_balance` automatically updates `accounts.balance` on every insertion.
 
-## Sales Transaction Flow
-The sales process is an atomic operation orchestrated by the `process_sale_transaction` RPC. It ensures integrity across Inventory, Sales, and Financial ledgers.
+## Sales Transaction Flow (Double Entry)
+The sales process is an atomic operation orchestrated by the `process_sale_transaction` RPC. It enforces **Double-Entry Bookkeeping** to ensure financial reality.
 
-1.  **Orchestration (RPC)**:
-    -   **Atomicity**: All steps occur within a single transaction. If any fail, the entire sale is rolled back.
-    -   **Validation**: Stock levels are checked (`products.current_stock` >= `requested_quantity`) with row locking (`FOR UPDATE`) to prevent race conditions.
+### 1. The Accounting Equation
+Every sale generates TWO financial records linked by a `group_id`:
+1.  **Debit (Asset)**: The money entering the `account_id` (e.g., Cash, Bank). Positive (+) Amount.
+2.  **Credit (Revenue)**: The record of *why* we have money. Recorded in the 'Ingresos por Ventas' account. Negative (-) Amount (Sign-based bookkeeping).
+-   **Result**: The sum of the transaction group is 0.
 
-2.  **Customer Snapshot**:
-    -   Customer data is upserted (created or updated) in the `customers` table.
-    -   Critical customer details (Name, ID) are also snapshotted into the `sales` table to preserve historical accuracy even if the customer record changes later.
+### 2. Logistics & Inventory
+-   **Atomicity**: Financials and Inventory are committed together. If one fails, both rollback.
+-   **Stock Check**: Uses `FOR UPDATE` row locking to prevent selling out-of-stock items during high concurrency.
+-   **Movement Log**: Records an `OUT` movement in `inventory_movements`, which triggers the stock deduction.
 
-3.  **Inventory Impact**:
-    -   **Movement Log**: `inventory_movements` records are created for each item (Type: `OUT`, Reason: `SALE`).
-    -   **Stock Update Trigger**: `trigger_update_product_stock` fires on insertion to `inventory_movements`, automatically deducting the quantity from `products.current_stock`.
+### 3. Safe Reversals (The "No-Delete" Rule)
+Transactions are immutable. To undo a mistake or process a refund, we use **Safe Reversals** (`rpc_reverse_transaction`).
+-   **Counter-Transaction**: Creating a new transaction (Type: `REFUND`) with the exact opposite values of the original.
+-   **Linking**: The new transaction is linked to the original via `related_transaction_id`.
+-   **Restoration**:
+    -   Financial balances are automatically adjusted back.
+    -   Inventory is automatically restored (`IN` movement created).
+    -   The original Sale is marked as `CANCELLED`.
 
-4.  **Financial Impact**:
-    -   **Income**: A `transactions` record is created (Type: `INCOME`) for the sale total.
-    -   **Balance Update Trigger**: `trigger_update_account_balance` fires on insertion to `transactions`, automatically increasing the `accounts.balance`.
-    -   **Shipping**: If applicable, a separate `transactions` record (Type: `EXPENSE`) is created for shipping costs, decreasing the relevant account balance.
-
-4.  **Reversibility (Safe Reversal)**:
-    -   **Ledger Integrity**: Transactions are never hard-deleted. Instead, we use `rpc_reverse_transaction` to create an offsetting "Counter-Transaction".
-    -   **Auto-Restoration**: This RPC automatically handles the financial refund AND the inventory restoration (logic detailed in [[Transaction_Workflows]]), ensuring the "Conservation of Money" and "Conservation of Matter" principles are preserved.
 

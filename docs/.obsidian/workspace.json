@@ -197,6 +197,7 @@
   },
   "active": "e015a8fa811aaa5a",
   "lastOpenFiles": [
+    "SYSTEM_MAP/01_Subsystems/Sales_and_Customers.md",
     "WALKTHROUGH_DOUBLE_ENTRY.md",
     "PLAN_DOUBLE_ENTRY.md",
     "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
@@ -229,7 +230,6 @@
     "Map Database.base",
     "blueprints/T-RPC Functions.md",
     "blueprints/S-Account Balances.md",
-    "blueprints/M-System Map.md",
     "blueprints",
     "Templates",
     "Untitled.base"

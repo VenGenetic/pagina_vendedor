@@ -132,25 +132,24 @@ export async function processPurchase(input: CreatePurchaseInput) {
         0
       ));
 
-      // Create transaction (EXPENSE)
-      const { data: transactionData, error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          type: 'EXPENSE',
-          amount: totalCost,
-          description: `Compra de inventario${input.nombre_proveedor ? ` - ${input.nombre_proveedor}` : ''}`,
-          account_id: input.id_cuenta,
-          account_out_id: input.id_cuenta,
-          payment_method: PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago],
-          notes: input.notas,
-          created_by: user.id,
-          created_by_name: user.name,
-        } as any)
-        .select()
-        .single();
+      // Create transaction (EXPENSE) via RPC (Double Entry)
+      const { data: rpcData, error: transactionError } = await supabase.rpc('process_generic_transaction', {
+        p_type: 'EXPENSE',
+        p_amount: totalCost,
+        p_description: `Compra de inventario${input.nombre_proveedor ? ` - ${input.nombre_proveedor}` : ''}`,
+        p_account_id: input.id_cuenta,
+        p_payment_method: PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago],
+        p_notes: input.notas,
+        p_user_id: user.id
+      } as any);
 
       if (transactionError) throw transactionError;
-      transaction = transactionData;
+
+      // Get the transaction object from the RPC result if possible, or construct a partial one
+      // The RPC returns { success, transaction_id, group_id }
+      // We might need to fetch the transaction if the return value is needed elsewhere, 
+      // but for now let's just use the ID for linkage.
+      transaction = { id: (rpcData as any).transaction_id };
     }
 
     // Create inventory movements (IN) (Parallelized)
@@ -228,24 +227,19 @@ export async function createExpense(input: EntradaCrearGasto) {
   try {
     const user = await getCurrentUser();
 
-    const { data: transaction, error } = await supabase
-      .from('transactions')
-      .insert({
-        type: 'EXPENSE',
-        amount: input.monto,
-        description: input.descripcion,
-        account_id: input.id_cuenta,
-        account_out_id: input.id_cuenta,
-        payment_method: PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago],
-        reference_number: input.numero_referencia,
-        notes: input.notas,
-        created_by: user.id,
-        created_by_name: user.name,
-      } as any)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('process_generic_transaction', {
+      p_type: 'EXPENSE',
+      p_amount: input.monto,
+      p_description: input.descripcion,
+      p_account_id: input.id_cuenta,
+      p_payment_method: PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago],
+      p_reference_number: input.numero_referencia,
+      p_notes: input.notas,
+      p_user_id: user.id
+    } as any);
 
     if (error) throw error;
+    const transaction = { id: (data as any).transaction_id };
 
     return {
       success: true,
@@ -268,26 +262,20 @@ export async function createIncome(input: EntradaCrearIngreso) {
   try {
     const user = await getCurrentUser();
 
-    // 1. Create Main Income Transaction (Sale Value)
-    const { data: transactionData, error } = await supabase
-      .from('transactions')
-      .insert({
-        type: 'INCOME',
-        amount: input.monto,
-        description: input.descripcion,
-        account_id: input.id_cuenta,
-        account_in_id: input.id_cuenta,
-        payment_method: PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago],
-        reference_number: input.numero_referencia,
-        notes: input.notas,
-        created_by: user.id,
-        created_by_name: user.name,
-      } as any)
-      .select()
-      .single();
+    // 1. Create Main Income Transaction (Sale Value) via RPC
+    const { data, error } = await supabase.rpc('process_generic_transaction', {
+      p_type: 'INCOME',
+      p_amount: input.monto,
+      p_description: input.descripcion,
+      p_account_id: input.id_cuenta,
+      p_payment_method: PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago],
+      p_reference_number: input.numero_referencia,
+      p_notes: input.notas,
+      p_user_id: user.id
+    } as any);
 
     if (error) throw error;
-    const transaction = transactionData as any; // Fix TS 'never' inference
+    const transaction = { id: (data as any).transaction_id };
 
 
     // 2. Optional: Create Cost Expense (if provided)
