@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
+                "file": "SYSTEM_MAP/00_Library/Motorcycle_Parts_ERP.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Restock_Algorithm_Logic"
+              "title": "Motorcycle_Parts_ERP"
             }
           }
         ],
@@ -197,12 +197,14 @@
   },
   "active": "e015a8fa811aaa5a",
   "lastOpenFiles": [
+    "WALKTHROUGH_DOUBLE_ENTRY.md",
+    "PLAN_DOUBLE_ENTRY.md",
+    "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
     "SYSTEM_MAP/01_Subsystems/Financial_Management.md",
     "SYSTEM_MAP/MAP.md",
     "Component_A.md",
     "Instructions/Documentation_Protocol.md",
     "SYSTEM_MAP/04_Parts/Transaction_Workflows.md",
-    "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
     "SYSTEM_MAP/03_Components/Transaction_History.md",
     "SYSTEM_MAP/03_Components/Product_Catalog.md",
     "SYSTEM_MAP/02_Assemblies/Stock_Controller.md",
@@ -228,8 +230,6 @@
     "blueprints/T-RPC Functions.md",
     "blueprints/S-Account Balances.md",
     "blueprints/M-System Map.md",
-    "blueprints/M-Parts Logic.md",
-    "blueprints/M-Money Logic.md",
     "blueprints",
     "Templates",
     "Untitled.base"

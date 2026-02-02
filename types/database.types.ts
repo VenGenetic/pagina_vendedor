@@ -38,6 +38,7 @@ export type Database = {
           balance: number;
           currency: string;
           is_active: boolean;
+          is_nominal: boolean; // Double-Entry
           created_at: string;
           updated_at: string;
         };
@@ -48,6 +49,7 @@ export type Database = {
           balance?: number;
           currency?: string;
           is_active?: boolean;
+          is_nominal?: boolean; // Double-Entry
           created_at?: string;
           updated_at?: string;
         };
@@ -58,6 +60,7 @@ export type Database = {
           balance?: number;
           currency?: string;
           is_active?: boolean;
+          is_nominal?: boolean; // Double-Entry
           created_at?: string;
           updated_at?: string;
         };
@@ -136,6 +139,7 @@ export type Database = {
           created_by?: string;
           created_by_name?: string;
           notes: string | null;
+          group_id: string | null; // Double-Entry
         };
         Insert: {
           id?: string;
@@ -151,6 +155,7 @@ export type Database = {
           created_by?: string;
           created_by_name?: string;
           notes?: string | null;
+          group_id?: string | null; // Double-Entry
         };
         Update: {
           id?: string;
@@ -164,6 +169,7 @@ export type Database = {
           transaction_date?: string;
           created_at?: string;
           notes?: string | null;
+          group_id?: string | null; // Double-Entry
         };
       };
       inventory_movements: {

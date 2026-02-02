@@ -44,5 +44,7 @@ The sales process is an atomic operation orchestrated by the `process_sale_trans
     -   **Balance Update Trigger**: `trigger_update_account_balance` fires on insertion to `transactions`, automatically increasing the `accounts.balance`.
     -   **Shipping**: If applicable, a separate `transactions` record (Type: `EXPENSE`) is created for shipping costs, decreasing the relevant account balance.
 
-5.  **Reversibility**:
-    -   Deleting a sale requires reversing these steps. The system supports this via `delete_sale` logic which relies on `trigger_update_product_stock` and `trigger_update_account_balance` handling `DELETE` events to restore stock and balances automatically.
+4.  **Reversibility (Safe Reversal)**:
+    -   **Ledger Integrity**: Transactions are never hard-deleted. Instead, we use `rpc_reverse_transaction` to create an offsetting "Counter-Transaction".
+    -   **Auto-Restoration**: This RPC automatically handles the financial refund AND the inventory restoration (logic detailed in [[Transaction_Workflows]]), ensuring the "Conservation of Money" and "Conservation of Matter" principles are preserved.
+

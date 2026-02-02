@@ -17,6 +17,8 @@ DROP TRIGGER IF EXISTS on_transaction_created ON transactions;
 -- Create/Replace the Balance Update Function
 CREATE OR REPLACE FUNCTION update_account_balance()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_orig_type VARCHAR;
 BEGIN
   -- CASE: INSERT (New Transaction)
   IF TG_OP = 'INSERT' THEN
@@ -43,6 +45,25 @@ BEGIN
       UPDATE accounts 
       SET balance = balance + NEW.amount, updated_at = NOW()
       WHERE id = NEW.account_in_id;
+
+    -- REFUND: Reverse the effect of the original transaction
+    ELSIF NEW.type = 'REFUND' THEN
+      IF NEW.related_transaction_id IS NOT NULL THEN
+        SELECT type INTO v_orig_type FROM transactions WHERE id = NEW.related_transaction_id;
+        
+        -- Reverse INCOME -> Subtract
+        IF v_orig_type = 'INCOME' THEN
+          UPDATE accounts 
+          SET balance = balance - NEW.amount, updated_at = NOW() 
+          WHERE id = NEW.account_id;
+          
+        -- Reverse EXPENSE -> Add
+        ELSIF v_orig_type = 'EXPENSE' THEN
+          UPDATE accounts 
+          SET balance = balance + NEW.amount, updated_at = NOW() 
+          WHERE id = NEW.account_id;
+        END IF;
+      END IF;
     END IF;
 
     RETURN NEW;
@@ -72,6 +93,25 @@ BEGIN
       UPDATE accounts 
       SET balance = balance - OLD.amount, updated_at = NOW()
       WHERE id = OLD.account_in_id;
+
+    -- REFUND: Undo the Refund (Re-apply original)
+    ELSIF OLD.type = 'REFUND' THEN
+      IF OLD.related_transaction_id IS NOT NULL THEN
+        SELECT type INTO v_orig_type FROM transactions WHERE id = OLD.related_transaction_id;
+        
+        -- Undo Refund of INCOME -> Add back
+        IF v_orig_type = 'INCOME' THEN
+          UPDATE accounts 
+          SET balance = balance + OLD.amount, updated_at = NOW() 
+          WHERE id = OLD.account_id;
+          
+        -- Undo Refund of EXPENSE -> Subtract again
+        ELSIF v_orig_type = 'EXPENSE' THEN
+          UPDATE accounts 
+          SET balance = balance - OLD.amount, updated_at = NOW() 
+          WHERE id = OLD.account_id;
+        END IF;
+      END IF;
     END IF;
 
     RETURN OLD;
@@ -87,6 +127,14 @@ BEGIN
     ELSIF OLD.type = 'TRANSFER' THEN
       UPDATE accounts SET balance = balance + OLD.amount WHERE id = OLD.account_out_id;
       UPDATE accounts SET balance = balance - OLD.amount WHERE id = OLD.account_in_id;
+    ELSIF OLD.type = 'REFUND' THEN
+       -- Undo Refund logic
+       SELECT type INTO v_orig_type FROM transactions WHERE id = OLD.related_transaction_id;
+       IF v_orig_type = 'INCOME' THEN
+          UPDATE accounts SET balance = balance + OLD.amount WHERE id = OLD.account_id;
+       ELSIF v_orig_type = 'EXPENSE' THEN
+          UPDATE accounts SET balance = balance - OLD.amount WHERE id = OLD.account_id;
+       END IF;
     END IF;
 
     -- 2. Then, APPLY the NEW values
@@ -97,6 +145,14 @@ BEGIN
     ELSIF NEW.type = 'TRANSFER' THEN
       UPDATE accounts SET balance = balance - NEW.amount, updated_at = NOW() WHERE id = NEW.account_out_id;
       UPDATE accounts SET balance = balance + NEW.amount, updated_at = NOW() WHERE id = NEW.account_in_id;
+    ELSIF NEW.type = 'REFUND' THEN
+       -- Apply Refund logic
+       SELECT type INTO v_orig_type FROM transactions WHERE id = NEW.related_transaction_id;
+       IF v_orig_type = 'INCOME' THEN
+          UPDATE accounts SET balance = balance - NEW.amount, updated_at = NOW() WHERE id = NEW.account_id;
+       ELSIF v_orig_type = 'EXPENSE' THEN
+          UPDATE accounts SET balance = balance + NEW.amount, updated_at = NOW() WHERE id = NEW.account_id;
+       END IF;
     END IF;
 
     RETURN NEW;

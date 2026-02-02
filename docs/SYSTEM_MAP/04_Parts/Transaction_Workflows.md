@@ -85,8 +85,13 @@ This file translates the complex creation logic for Income, Expense, and Purchas
     -   Creates a Transaction with `account_in_id` (Dest) and `account_out_id` (Source).
     -   Updates both balances atomically via backend trigger.
 
-## 6. Debugging & Known Issues
-### Transaction Deletion & Balance Reversion
--   **Risk**: Deleting a primary transaction (e.g., Transfer) may NOT automatically delete associated fee or shipping transactions if they are loosely coupled.
--   **Symptom**: "Ghost" balances (e.g., off by small amounts like $4) after deletion.
--   **Investigation**: Verify if transfers create multiple distinct transaction records.
+## 6. Safe Reversals (RPC)
+### Logic
+Instead of deleting transactions (which breaks the ledger), the system uses `rpc_reverse_transaction`.
+-   **Mechanism**:
+    1.  **Validation**: Ensures transaction exists and isn't already reversed.
+    2.  **Counter-Transaction**: Creates a new `REFUND` transaction with negative values linked to the original.
+    3.  **Inventory Restoration**: If linked to a sale, creates `IN` movements (Reason: `RETURN`) to restore stock.
+    4.  **State Update**: Marks original transaction as `is_reversed` and (if sale) `CANCELLED`.
+    5.  **Audit Trail**: Logs who performed the reversal and when.
+

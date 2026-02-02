@@ -425,7 +425,7 @@ export default function NewSalePage() {
             >
               <option value="" className="dark:bg-slate-900 text-slate-500">Selecciona una cuenta</option>
               {accounts
-                ?.filter(acc => acc.name !== 'Caja Grande') // Filter out Caja Grande for small transactions
+                ?.filter(acc => acc.name !== 'Caja Grande' && !acc.is_nominal) // Filter out Caja Grande and Nominal Accounts
                 .sort((a, b) => {
                   const priority = ['Banco Pichincha Katiuska', 'Banco Guayaquil Katiuska', 'Efectivo'];
                   const idxA = priority.indexOf(a.name);
