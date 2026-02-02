@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Clock, Loader2, Edit2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Clock, Loader2, Edit2, Trash2, Undo2 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
@@ -255,15 +255,15 @@ export default function NewExpensePage() {
                               className="h-6 px-2 text-xs text-slate-400 hover:text-red-600 hover:bg-red-50"
                               disabled={isDeleting}
                             >
-                              <Trash2 className="w-3 h-3 mr-1" />
-                              Anular
+                              <Undo2 className="w-3 h-3 mr-1" />
+                              Revertir
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>¿Anular este gasto?</AlertDialogTitle>
+                              <AlertDialogTitle>¿Revertir este gasto?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Esta acción revertirá la transacción financiera. El gasto quedará registrado como anulado.
+                                Esta acción creará un contrasiento (Devolución) y corregirá el saldo. El gasto original se marcará como revertido.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -272,7 +272,7 @@ export default function NewExpensePage() {
                                 onClick={() => deleteExpense(tx.id)}
                                 className="bg-red-600 text-white hover:bg-red-700"
                               >
-                                {isDeleting ? 'Anulando...' : 'Sí, anular'}
+                                {isDeleting ? 'Revirtiendo...' : 'Sí, revertir'}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>

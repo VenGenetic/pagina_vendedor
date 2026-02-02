@@ -25,10 +25,14 @@
             "id": "e015a8fa811aaa5a",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Restock_Algorithm_Logic"
             }
           }
         ],
@@ -193,6 +197,9 @@
   },
   "active": "e015a8fa811aaa5a",
   "lastOpenFiles": [
+    "SYSTEM_MAP/01_Subsystems/Financial_Management.md",
+    "SYSTEM_MAP/MAP.md",
+    "Component_A.md",
     "Instructions/Documentation_Protocol.md",
     "SYSTEM_MAP/04_Parts/Transaction_Workflows.md",
     "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
@@ -204,7 +211,6 @@
     "Templates/The Subsystem_Assembly _The Logic Hub.md",
     "Templates/The Component (The Implementation).md",
     "Instructions/Untitled.md",
-    "SYSTEM_MAP/MAP.md",
     "Instructions/SYSTEM_MAP.md",
     "SYSTEM_MAP/00_Library/Motorcycle_Parts_ERP.md",
     "System_Library/04_Parts_Pages.md",
@@ -214,7 +220,6 @@
     "SYSTEM_MAP/04_Parts",
     "SYSTEM_MAP/03_Components",
     "SYSTEM_MAP/02_Assemblies",
-    "SYSTEM_MAP/01_Subsystems/Financial_Management.md",
     "SYSTEM_MAP/01_Subsystems/Inventory_Management.md",
     "SYSTEM_MAP/01_Subsystems",
     "SYSTEM_MAP/00_Library",
@@ -225,7 +230,6 @@
     "blueprints/M-System Map.md",
     "blueprints/M-Parts Logic.md",
     "blueprints/M-Money Logic.md",
-    "blueprints/T-Supabase Schema.md",
     "blueprints",
     "Templates",
     "Untitled.base"

@@ -355,16 +355,18 @@ export async function deleteCommission(transactionId: string) {
 
     // 3. Revert associated expenses
     for (const tx of (associatedTxs as any[]) || []) {
-      await supabase.rpc('revert_transaction_soft', {
+      await supabase.rpc('rpc_reverse_transaction', {
         p_transaction_id: tx.id,
-        p_user_id: user.id
+        p_user_id: user.id,
+        p_reason: 'Reversión automática (Comisión eliminada)'
       } as any);
     }
 
     // 4. Revert main transaction
-    const { error: revertError } = await supabase.rpc('revert_transaction_soft', {
+    const { error: revertError } = await supabase.rpc('rpc_reverse_transaction', {
       p_transaction_id: transactionId,
-      p_user_id: user.id
+      p_user_id: user.id,
+      p_reason: 'Reversión manual de comisión'
     } as any);
 
     if (revertError) throw revertError;
@@ -412,9 +414,10 @@ export async function deleteSale(saleId: string) {
 
     // 3. Revert each transaction
     for (const tx of (transactions as any[]) || []) {
-      const { error: rpcError } = await supabase.rpc('revert_transaction_soft', {
+      const { error: rpcError } = await supabase.rpc('rpc_reverse_transaction', {
         p_transaction_id: tx.id,
-        p_user_id: user.id
+        p_user_id: user.id,
+        p_reason: 'Anulación de Venta #' + (saleData?.sale_number || '')
       } as any);
       if (rpcError) throw rpcError;
     }
@@ -434,9 +437,10 @@ export async function deletePurchase(transactionId: string) {
     const user = await getCurrentUser();
 
     // Call RPC to revert
-    const { error } = await supabase.rpc('revert_transaction_soft', {
+    const { error } = await supabase.rpc('rpc_reverse_transaction', {
       p_transaction_id: transactionId,
-      p_user_id: user.id
+      p_user_id: user.id,
+      p_reason: 'Reversión manual de compra'
     } as any);
 
     if (error) throw error;
@@ -455,9 +459,10 @@ export async function deleteExpense(transactionId: string) {
   try {
     const user = await getCurrentUser();
 
-    const { error } = await supabase.rpc('revert_transaction_soft', {
+    const { error } = await supabase.rpc('rpc_reverse_transaction', {
       p_transaction_id: transactionId,
-      p_user_id: user.id
+      p_user_id: user.id,
+      p_reason: 'Reversión manual de gasto'
     } as any);
 
     if (error) throw error;

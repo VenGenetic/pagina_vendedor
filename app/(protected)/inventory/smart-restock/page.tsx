@@ -31,14 +31,6 @@ export default function SmartRestockPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [searchTerm, statusFilter, categoryFilter, brandFilter, data]);
-
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -116,7 +108,11 @@ export default function SmartRestockPage() {
     }
   };
 
-  const applyFilters = () => {
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
     let result = data;
 
     // Search
@@ -144,7 +140,8 @@ export default function SmartRestockPage() {
     }
 
     setFilteredData(result);
-  };
+  }, [searchTerm, statusFilter, categoryFilter, brandFilter, data]);
+
 
   const downloadCSV = () => {
     const csvData = filteredData.map(item => ({
@@ -263,9 +260,9 @@ export default function SmartRestockPage() {
                 <tr key={item.product_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${item.status_label === 'CRITICAL' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-900' :
-                        item.status_label === 'REORDER' ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900' :
-                          item.status_label === 'OVERSTOCK' ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-900' :
-                            'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-900'
+                      item.status_label === 'REORDER' ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-900' :
+                        item.status_label === 'OVERSTOCK' ? 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-900' :
+                          'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-900'
                       }`}>
                       {item.status_label === 'CRITICAL' && <XCircle className="w-3 h-3" />}
                       {item.status_label === 'REORDER' && <AlertTriangle className="w-3 h-3" />}

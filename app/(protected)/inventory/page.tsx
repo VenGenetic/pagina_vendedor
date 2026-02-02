@@ -6,6 +6,7 @@ import { useDebounce } from '@/hooks/use-debounce';
 import { Input } from '@/components/ui/input';
 import { ArrowLeft, Search, AlertTriangle, Package, ChevronRight, Download, Trash2, Pencil, Filter, Plus, Minus, RefreshCw, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { formatCurrency, isLowStock, calculateStockPercentage } from '@/lib/utils';
 import { advancedProductSearch } from '@/lib/utils/advanced-search';
 import { supabase } from '@/lib/supabase/client';
@@ -329,10 +330,12 @@ export default function InventoryPage() {
                       <div className="flex gap-4 mb-3">
                         <div className={`shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 flex items-center justify-center ${outOfStock ? 'opacity-50 grayscale' : ''}`}>
                           {product.image_url ? (
-                            <img
+                            <Image
                               src={product.image_url}
                               alt={product.name}
-                              className="w-full h-full object-cover"
+                              fill
+                              sizes="80px"
+                              className="object-cover"
                             />
                           ) : (
                             <Package className="h-8 w-8 text-slate-300 dark:text-slate-600" />

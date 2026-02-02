@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDeletePurchase } from '@/hooks/use-queries';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Trash2, AlertTriangle, X, Check, Edit2, ArrowLeft, Package, Loader2 } from 'lucide-react';
+import { Trash2, AlertTriangle, X, Check, Edit2, ArrowLeft, Package, Loader2, Undo2 } from 'lucide-react';
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -270,16 +270,15 @@ export default function PurchaseHistoryPage() {
                               className="text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                               disabled={isDeleting}
                             >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Anular
+                              <Undo2 className="w-4 h-4 mr-2" />
+                              Revertir
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                             <AlertDialogHeader>
-                              <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Anular esta compra?</AlertDialogTitle>
+                              <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Revertir esta compra?</AlertDialogTitle>
                               <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-                                Esta acción revertirá la transacción financiera y ajustará el inventario (se reducirá el stock ingresado).
-                                La transacción quedará registrada como anulada.
+                                Esta acción creará una contra-transacción (&quot;Reembolso&quot;), reducirá el inventario ingresado y corregirá el saldo.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -288,7 +287,7 @@ export default function PurchaseHistoryPage() {
                                 onClick={() => deletePurchase(batch.transaction_id!)}
                                 className="bg-red-600 text-white hover:bg-red-700"
                               >
-                                {isDeleting ? 'Anulando...' : 'Sí, anular'}
+                                {isDeleting ? 'Revirtiendo...' : 'Sí, revertir'}
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>

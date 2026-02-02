@@ -5,7 +5,7 @@ import { useProducts, useCreateSale, useAccounts, useRecentSales, useDeleteSale,
 import { useDebounce } from '@/hooks/use-debounce';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Plus, Minus, Check, Loader2, Clock, User, Users, Trash2, AlertCircle, Search, ChevronDown, ChevronUp, Edit2, Package, MapPin, FileText } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Check, Loader2, Clock, User, Users, Undo2, AlertCircle, Search, ChevronDown, ChevronUp, Edit2, Package, MapPin, FileText } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import Link from 'next/link';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
@@ -844,15 +844,15 @@ export default function NewSalePage() {
                           className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 font-semibold px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                           disabled={isDeleting}
                         >
-                          <Trash2 className="w-3 h-3" />
-                          Anular
+                          <Undo2 className="w-4 h-4" />
+                          Revertir
                         </button>
                       </AlertDialogTrigger>
                       <AlertDialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                         <AlertDialogHeader>
-                          <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Anular esta venta?</AlertDialogTitle>
+                          <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Revertir esta venta?</AlertDialogTitle>
                           <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-                            Esta acción revertirá la venta, restaurará el inventario y marcará la transacción como anulada.
+                            Esta acción creará una contra-transacción para anular la venta, restaurará el inventario y corregirá el saldo.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -861,7 +861,7 @@ export default function NewSalePage() {
                             onClick={() => deleteSale(sale.id)}
                             className="bg-red-600 text-white hover:bg-red-700"
                           >
-                            {isDeleting ? 'Anulando...' : 'Sí, anular'}
+                            {isDeleting ? 'Revirtiendo...' : 'Sí, revertir'}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
