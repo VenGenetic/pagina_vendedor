@@ -81,7 +81,7 @@ export default function Dashboard() {
       <main className="max-w-md md:max-w-7xl mx-auto p-4 space-y-6 md:space-y-0 md:grid md:grid-cols-12 md:gap-6">
         {/* Balance Card */}
         <div className="bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-900 rounded-2xl p-6 text-white shadow-lg md:col-span-5 lg:col-span-4">
-          <p className="text-sm text-blue-100 mb-2">Saldo Total (Sistema)</p>
+          <p className="text-sm text-blue-100 mb-2">Saldo en Cuentas</p>
           <div className="flex items-baseline gap-2 mb-6">
             <h2 className="text-4xl font-bold">
               {formatCurrency(totalBalance)}

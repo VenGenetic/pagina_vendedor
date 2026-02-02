@@ -184,7 +184,7 @@ export function useDashboardStats() {
       // aunque React Query esperará todo. Pero al menos optimizamos las queries individuales.
 
       const [accountsRes, lowStockRes, productsRes, salesRes] = await Promise.all([
-        supabase.from('accounts').select('balance').eq('is_active', true),
+        supabase.from('accounts').select('balance').eq('is_active', true).not('is_nominal', 'eq', true),
         supabase.from('low_stock_products').select('id', { count: 'exact', head: true }),
         supabase.from('products').select('id', { count: 'exact', head: true }).eq('is_active', true),
         supabase.from('transactions').select('amount').eq('type', 'INCOME').gte('transaction_date', today)
