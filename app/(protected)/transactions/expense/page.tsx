@@ -236,7 +236,7 @@ export default function NewExpensePage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <div className="font-bold text-red-600 whitespace-nowrap">
-                          -{formatCurrency(tx.amount)}
+                          -{formatCurrency(Math.abs(tx.amount))}
                         </div>
                         <Button
                           variant="ghost"

@@ -282,7 +282,7 @@ export default function CommissionHistoryPage() {
                                             "text-xs font-bold whitespace-nowrap flex-shrink-0",
                                             relTx.type === 'EXPENSE' ? "text-rose-600 dark:text-rose-400" : "text-blue-600 dark:text-blue-400"
                                           )}>
-                                            {relTx.type === 'EXPENSE' ? '-' : '+'}{formatCurrency(relTx.amount)}
+                                            {relTx.type === 'EXPENSE' ? '-' : '+'}{formatCurrency(Math.abs(relTx.amount))}
                                           </span>
                                         </div>
                                       </div>
