@@ -68,15 +68,15 @@ export default function JohnCommissionsPage() {
   // Filtered products for search
   const iComissionDebouncedSearch = useDebounce(iComissionSearch, 50);
   const heVendsDebouncedSearch = useDebounce(heVendsSearch, 50);
-  
+
   // Fetch ALL products to ensure client-side search finds everything (A-Z)
   // Large pageSize prevents truncation of products starting with later letters (T, V, Z)
   const { data: iComissionProductsData } = useProducts({ pageSize: 100000 });
   const allIComissionProducts = iComissionProductsData?.data || [];
-  
+
   // Apply catalog-motos search algorithm
   const iComissionProducts = advancedProductSearch(
-    allIComissionProducts, 
+    allIComissionProducts,
     iComissionSearch
   );
 
@@ -84,16 +84,16 @@ export default function JohnCommissionsPage() {
   // This helps identify if it's a fetch issue or search issue
   console.log(`[DEBUG] Loaded ${allIComissionProducts.length} items for search.`);
   if (iComissionSearch.toLowerCase().includes('wolf')) {
-     const debugMatches = allIComissionProducts.filter(p => p.name.toLowerCase().includes('velocimetro') && p.name.toLowerCase().includes('wolf'));
-     console.log('[DEBUG] "Velocimetro ... Wolf" items in Raw Data:', debugMatches);
+    const debugMatches = allIComissionProducts.filter(p => p.name.toLowerCase().includes('velocimetro') && p.name.toLowerCase().includes('wolf'));
+    console.log('[DEBUG] "Velocimetro ... Wolf" items in Raw Data:', debugMatches);
   }
-  
+
   const { data: heVendsProductsData } = useProducts({ pageSize: 100000 });
   const allHeVendsProducts = heVendsProductsData?.data || [];
-  
+
   // Apply catalog-motos search algorithm
   const heVendsProducts = advancedProductSearch(
-    allHeVendsProducts, 
+    allHeVendsProducts,
     heVendsSearch
   );
 
@@ -101,13 +101,13 @@ export default function JohnCommissionsPage() {
   const calculateIComissionValue = (): number => {
     if (!iComissionSellingPrice) return 0;
     const sellingPrice = parseFloat(iComissionSellingPrice) || 0;
-    
+
     if (iComissionManualMode) {
       const manualCost = parseFloat(iComissionManualCost) || 0;
       const costWithIva = manualCost * 1.15;
       return Math.max(0, sellingPrice - costWithIva);
     }
-    
+
     if (!iComissionProduct) return 0;
     const costWithIva = iComissionProduct.cost_price * 1.15;
     return Math.max(0, sellingPrice - costWithIva);
@@ -116,13 +116,13 @@ export default function JohnCommissionsPage() {
   // Calculate amount for "Él Vende Nuestros"
   const calculateHeVendsValue = (): number => {
     const qty = parseInt(heVendsQuantity) || 1;
-    
+
     if (heVendsManualMode) {
       const manualCost = parseFloat(heVendsManualCost) || 0;
       const costWithIva = manualCost * 1.15;
       return costWithIva * qty;
     }
-    
+
     if (!heVendsProduct) return 0;
     const costWithIva = heVendsProduct.cost_price * 1.15;
     return costWithIva * qty;
@@ -163,7 +163,7 @@ export default function JohnCommissionsPage() {
       const commissionValue = calculateIComissionValue();
       const productName = iComissionManualMode ? iComissionManualName : iComissionProduct.name;
       const costPrice = iComissionManualMode ? parseFloat(iComissionManualCost) : iComissionProduct.cost_price;
-      
+
       // Create transaction for John's commission
       const { error } = await supabase
         .from('transactions')
@@ -223,7 +223,7 @@ export default function JohnCommissionsPage() {
       const qty = parseInt(heVendsQuantity) || 1;
       const productName = heVendsManualMode ? heVendsManualName : heVendsProduct.name;
       const costPrice = heVendsManualMode ? parseFloat(heVendsManualCost) : heVendsProduct.cost_price;
-      
+
       // Create transaction for our income
       const { error } = await supabase
         .from('transactions')
@@ -329,7 +329,7 @@ export default function JohnCommissionsPage() {
                           {iComissionManualMode ? '🔍 Buscar en Stock' : '✏️ Entrada Manual'}
                         </button>
                       </div>
-                      
+
                       {!iComissionManualMode ? (
                         <>
                           {/* Part Name Filter */}
@@ -414,11 +414,10 @@ export default function JohnCommissionsPage() {
                                       {formatCurrency(p.cost_price || 0)}
                                     </div>
                                     {(p.current_stock !== undefined) && (
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 ${
-                                        p.current_stock > 0 
-                                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' 
-                                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                      }`}>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 ${p.current_stock > 0
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                        }`}>
                                         {p.current_stock > 0 ? `${p.current_stock} disp.` : 'Agotado'}
                                       </span>
                                     )}
@@ -578,7 +577,7 @@ export default function JohnCommissionsPage() {
                         <div className="flex justify-between items-center pt-2 border-t border-violet-200 dark:border-violet-700/50">
                           <span className="text-xs md:text-sm text-slate-600 dark:text-slate-400">Costo + IVA</span>
                           <span className="font-bold text-base md:text-lg text-slate-900 dark:text-slate-100">
-                            -{formatCurrency((iComissionManualMode ? parseFloat(iComissionManualCost) : iComissionProduct.cost_price) * 1.15)}
+                            {formatCurrency(-((iComissionManualMode ? parseFloat(iComissionManualCost) : iComissionProduct.cost_price) * 1.15))}
                           </span>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t-2 border-violet-300 dark:border-violet-600">
@@ -635,7 +634,7 @@ export default function JohnCommissionsPage() {
                           {heVendsManualMode ? '🔍 Buscar en Stock' : '✏️ Entrada Manual'}
                         </button>
                       </div>
-                      
+
                       {!heVendsManualMode ? (
                         <>
                           {/* Part Name Filter */}
@@ -720,11 +719,10 @@ export default function JohnCommissionsPage() {
                                       {formatCurrency(p.cost_price || 0)}
                                     </div>
                                     {(p.current_stock !== undefined) && (
-                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 ${
-                                        p.current_stock > 0 
-                                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' 
-                                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                      }`}>
+                                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full mt-1 ${p.current_stock > 0
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                        : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                        }`}>
                                         {p.current_stock > 0 ? `${p.current_stock} disp.` : 'Agotado'}
                                       </span>
                                     )}
@@ -886,7 +884,7 @@ export default function JohnCommissionsPage() {
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-slate-600 dark:text-slate-400">IVA 15%</span>
                           <span className="font-bold text-lg text-slate-900 dark:text-slate-100">
-                            +{formatCurrency((heVendsManualMode ? parseFloat(heVendsManualCost) : heVendsProduct.cost_price) * 0.15)}
+                            {formatCurrency((heVendsManualMode ? parseFloat(heVendsManualCost) : heVendsProduct.cost_price) * 0.15)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t border-emerald-200 dark:border-emerald-700/50">

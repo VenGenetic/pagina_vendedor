@@ -11,7 +11,7 @@ tags: [inventory, algorithm, logic]
 The **Restock Algorithm Logic** is the mathematical engine behind inventory recommendations. It moves beyond simple static thresholds to a dynamic model based on "Sales Velocity."
 
 ## Hierarchy
-- **Parent**: [[Smart_Restock_Module]]
+- **Parent**: None
 - **Children**: None
 
 ## The Formula

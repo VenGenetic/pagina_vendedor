@@ -256,13 +256,13 @@ export default function Dashboard() {
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <div
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${transaction.type === 'INCOME'
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center ${transaction.amount > 0
                         ? 'bg-emerald-100 dark:bg-emerald-900/30'
                         : 'bg-red-100 dark:bg-red-900/30'
                         }`}
                     >
-                      {transaction.type === 'INCOME' ? (
-                        <TrendingUp className={`w-5 h-5 ${transaction.type === 'INCOME' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                      {transaction.amount > 0 ? (
+                        <TrendingUp className={`w-5 h-5 ${transaction.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                           }`} />
                       ) : (
                         <TrendingDown className="w-5 h-5 text-red-600 dark:text-red-400" />
@@ -277,11 +277,10 @@ export default function Dashboard() {
                       </p>
                     </div>
                   </div>
-                  <div className={`text-right font-bold text-sm ${transaction.type === 'INCOME'
+                  <div className={`text-right font-bold text-sm ${transaction.amount > 0
                     ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-slate-800 dark:text-slate-100'
+                    : 'text-red-600 dark:text-red-400'
                     }`}>
-                    {transaction.type === 'INCOME' ? '+' : '-'}
                     {formatCurrency(transaction.amount)}
                   </div>
                 </div>

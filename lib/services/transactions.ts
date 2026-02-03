@@ -115,102 +115,48 @@ export async function processSale(input: CreateSaleInput) {
 
 /**
  * Process a purchase/restock transaction
+ * Modified to use Atomic WAC RPC (process_restock_v2)
  */
 export async function processPurchase(input: CreatePurchaseInput) {
   try {
     const user = await getCurrentUser();
 
-    let transaction: any = null;
-
-    if (!input.es_ingreso_gratuito) {
-      if (!input.id_cuenta || !input.metodo_pago) {
-        throw new Error('Se requiere cuenta y método de pago para compras con costo');
-      }
-
-      const totalCost = safeAmount(input.articulos.reduce(
-        (sum, item) => sum + item.cantidad * item.costo_unitario,
-        0
-      ));
-
-      // Create transaction (EXPENSE) via RPC (Double Entry)
-      const { data: rpcData, error: transactionError } = await supabase.rpc('process_generic_transaction', {
-        p_type: 'EXPENSE',
-        p_amount: totalCost,
-        p_description: `Compra de inventario${input.nombre_proveedor ? ` - ${input.nombre_proveedor}` : ''}`,
-        p_account_id: input.id_cuenta,
-        p_payment_method: PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago],
-        p_notes: input.notas,
-        p_user_id: user.id
-      } as any);
-
-      if (transactionError) throw transactionError;
-
-      // Get the transaction object from the RPC result if possible, or construct a partial one
-      // The RPC returns { success, transaction_id, group_id }
-      // We might need to fetch the transaction if the return value is needed elsewhere, 
-      // but for now let's just use the ID for linkage.
-      transaction = { id: (rpcData as any).transaction_id };
-    }
-
-    // Create inventory movements (IN) (Parallelized)
-    await Promise.all(input.articulos.map(async (item) => {
-      // 0. Get current stock (No longer needed as stock is updated by trigger)
-      // const { data: currentProduct, error: fetchError } = await supabase
-      //   .from('products')
-      //   .select('current_stock')
-      //   .eq('id', item.id_producto)
-      //   .single();
-
-      // if (fetchError) throw fetchError;
-
-      // // Cast to any to handle potential type inference issues with single()
-      // const productData = currentProduct as any;
-      // const newStock = (productData?.current_stock || 0) + item.cantidad;
-
-      // 1. Create Movement
-      const { error: movementError } = await supabase
-        .from('inventory_movements')
-        .insert({
-          product_id: item.id_producto,
-          type: 'IN',
-          quantity_change: item.cantidad, // Positive for IN
-          unit_price: item.costo_unitario,
-          total_value: item.cantidad * item.costo_unitario,
-          transaction_id: transaction?.id || null,
-          reason: input.es_ingreso_gratuito ? 'COUNT_ADJUSTMENT' : 'PURCHASE',
-          notes: input.notas || (input.es_ingreso_gratuito ? 'Ingreso externo / Gratuito' : undefined),
-        } as any);
-
-      if (movementError) throw movementError;
-
-      // 2. Update Product Costs and Selling Price (Updated At only, NO STOCK OVERWRITE)
-      // Stock is handled by DB Trigger: trigger_update_product_stock (from inventory_movements)
-      const updates: any = {
-        updated_at: new Date().toISOString()
-      };
-
-      if (item.costo_unitario > 0) {
-        updates.cost_price = item.costo_unitario;
-        // Use IVA and profit margin provided, or defaults if not provided
-        const ivaTax = input.iva_tax ?? 15; // Default 15% IVA
-        const profitMargin = input.profit_margin ?? 65; // Default 65% profit margin
-        const ivaMultiplier = 1 + (ivaTax / 100);
-        const profitMultiplier = 1 + (profitMargin / 100);
-        updates.selling_price = safeAmount(item.costo_unitario * ivaMultiplier * profitMultiplier);
-      }
-
-      const { error: updateError } = await (supabase as any)
-        .from('products')
-        .update(updates)
-        .eq('id', item.id_producto);
-
-      if (updateError) throw updateError;
+    // Prepare items for JSONB parameter
+    const itemsPayload = input.articulos.map(item => ({
+      product_id: item.id_producto,
+      quantity: item.cantidad,
+      cost_unit: item.costo_unitario
     }));
+
+    // Calculate total amount (Real money out)
+    const rawTotal = input.articulos.reduce(
+      (sum, item) => sum + (item.cantidad * item.costo_unitario),
+      0
+    );
+
+    // Handle Free Entry Logic for Financial Transaction
+    // If free, p_amount = 0 (No Expense Created), but Items carry their 'cost_unit' for WAC
+    const finalAmount = input.es_ingreso_gratuito ? 0 : safeAmount(rawTotal);
+
+    // Call Atomic RPC
+    const { data: rpcData, error: transactionError } = await supabase.rpc('process_restock_v2', {
+      p_account_id: input.id_cuenta || null, // Can be null if free
+      p_provider_name: input.nombre_proveedor || '',
+      p_payment_method: input.metodo_pago ? PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago] : 'OTHER',
+      p_amount: finalAmount,
+      p_reference_number: null, // Input doesn't have ref number? Using generic or add if needed.
+      p_notes: input.notas || (input.es_ingreso_gratuito ? 'Ingreso Gratuito' : undefined),
+      p_user_id: user.id === 'Usuario' ? null : user.id, // Handle fallback? user.id is usually valid UUID or null
+      p_items: itemsPayload
+    } as any);
+
+    if (transactionError) throw transactionError;
 
     return {
       success: true,
-      data: { transaction },
+      data: rpcData,
     };
+
   } catch (error: any) {
     console.error('Error processing purchase:', error);
     return {

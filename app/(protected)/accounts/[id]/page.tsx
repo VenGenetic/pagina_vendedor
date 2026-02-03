@@ -33,33 +33,47 @@ export default function AccountDetailsPage() {
 
     let runningBalance = account.balance;
 
-    return sortedTx.map((tx: any) => {
-      // Determine direction relative to THIS account
-      let signedAmount = 0;
+    const computedTx = sortedTx.map((tx: any) => {
+      // Determine net flow relative to THIS account
+      // Start with 0 (neutral) and add/subtract based on flow
+      let netAmount = 0;
 
+      // 1. Check strict account_in / account_out columns (Transfer logic)
       if (tx.account_in_id === accountId) {
-        // Money coming IN (Transfer received)
-        signedAmount = tx.amount;
-      } else if (tx.account_out_id === accountId) {
-        // Money going OUT (Transfer sent)
-        signedAmount = -tx.amount;
-      } else {
-        // Regular Income/Expense
-        if (tx.type === 'INCOME' && tx.account_id === accountId) signedAmount = tx.amount;
-        else if (tx.type === 'EXPENSE' && tx.account_id === accountId) signedAmount = -tx.amount;
+        netAmount += tx.amount;
+      }
+      if (tx.account_out_id === accountId) {
+        netAmount -= tx.amount;
+      }
+
+      // 2. Fallback for mixed/legacy data (Income/Expense on main account_id)
+      // Only apply if neutral so far, to avoid double counting if ID appears in multiple places (unlikely but safe)
+      if (netAmount === 0) {
+        if (tx.type === 'INCOME' && tx.account_id === accountId) {
+          netAmount += tx.amount;
+        } else if (tx.type === 'EXPENSE' && tx.account_id === accountId) {
+          netAmount -= tx.amount;
+        }
       }
 
       // The current runningBalance is the balance AFTER this transaction
       const balanceAfter = runningBalance;
 
       // Calculate balance BEFORE this transaction (which is balance AFTER the next older one)
-      runningBalance -= signedAmount;
+      // Only subtract the net impact to reverse time
+      runningBalance -= netAmount;
 
       return {
         ...tx,
+        netAmount,
         balanceAfter
       };
     });
+
+    // Filter out transactions that have NO impact on this account's balance
+    // Exception: Explicit Adjustment types might have 0 value but usually adjustments have impact.
+    // If user wants to see "Split Category" 0-sum events, we keep them if type is special or explicit override.
+    return computedTx.filter(tx => tx.netAmount !== 0 || tx.type === 'ADJUSTMENT');
   }, [transactions, account, accountId]);
 
   return (
@@ -88,7 +102,6 @@ export default function AccountDetailsPage() {
         />
       )}
 
-      {/* Header */}
       {/* Header */}
       <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 transition-colors">
         <div className="max-w-md mx-auto flex h-16 items-center gap-4 px-4">
@@ -169,21 +182,22 @@ export default function AccountDetailsPage() {
           <div className="space-y-3">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-300 ml-1">Historial de Transacciones</h3>
             {transactionsWithBalance.map((tx: any) => {
-              // Determinar si es entrada o salida para ESTA cuenta
-              const isEntry = tx.account_in_id === accountId || (tx.type === 'INCOME' && tx.account_id === accountId && !tx.account_out_id);
-              // Si es transferencia interna, puede ser salida
-              const isExit = tx.account_out_id === accountId || (tx.type === 'EXPENSE' && tx.account_id === accountId);
+              // Logic STRICTLY based on netAmount calculated in useMemo
+              const isPositive = tx.netAmount > 0;
+              const isNegative = tx.netAmount < 0;
+              // Even if it's 0 (Adjustment), we default to gray or neutral, but here we assume filtered unless Adjustment
+              const neutral = tx.netAmount === 0;
 
-              const isPositive = isEntry && !isExit; // Solo entrada
-              // En transferencias puede ser ambas si es la misma cta (no debería pasar)
-
-              // Ajuste visual para cuando es ambiguo, por defecto usamos el tipo
-              const showGreen = isEntry;
+              // Color determination
+              const showGreen = isPositive;
+              const showRed = isNegative;
 
               // Check if it's a transfer involving another known bank to apply colors to the row
               let otherAccountName = '';
               if (tx.account_in_id && tx.account_out_id) {
-                otherAccountName = isEntry ? tx.account_out?.name : tx.account_in?.name;
+                // If I am receiving (Green), show who sent it (Source)
+                // If I am sending (Red), show who received it (Dest)
+                otherAccountName = showGreen ? tx.account_out?.name : tx.account_in?.name;
               }
               const otherAccountColors = otherAccountName ? getAccountColor(otherAccountName) : null;
 
@@ -205,9 +219,14 @@ export default function AccountDetailsPage() {
                         <div className={cn("p-2 rounded-full", otherAccountColors ? otherAccountColors.iconBg : "bg-emerald-100")}>
                           <ArrowDownCircle className={cn("h-5 w-5", otherAccountColors ? otherAccountColors.iconColor : "text-emerald-600")} />
                         </div>
-                      ) : (
+                      ) : showRed ? (
                         <div className={cn("p-2 rounded-full", otherAccountColors ? otherAccountColors.iconBg : "bg-rose-100")}>
                           <ArrowUpCircle className={cn("h-5 w-5", otherAccountColors ? otherAccountColors.iconColor : "text-rose-600")} />
+                        </div>
+                      ) : (
+                        // Neutral / 0 case
+                        <div className={cn("p-2 rounded-full", "bg-slate-100 dark:bg-slate-800")}>
+                          <Scale className={cn("h-5 w-5", "text-slate-500")} />
                         </div>
                       )}
 
@@ -222,7 +241,7 @@ export default function AccountDetailsPage() {
                         {otherAccountName ? (
                           <div className="flex flex-col">
                             <span className="text-[10px] font-bold uppercase text-slate-400 dark:text-slate-500">
-                              {isEntry ? 'Recibido de:' : 'Enviado a:'}
+                              {showGreen ? 'Recibido de:' : 'Enviado a:'}
                             </span>
                             <p className={cn("font-bold text-sm", otherAccountColors?.iconColor)}>
                               {otherAccountName}
@@ -241,9 +260,9 @@ export default function AccountDetailsPage() {
                     <div className="flex flex-col items-end">
                       <div className={cn(
                         "font-bold text-sm whitespace-nowrap",
-                        showGreen ? "text-emerald-600" : "text-rose-600"
+                        showGreen ? "text-emerald-600" : showRed ? "text-rose-600" : "text-slate-600"
                       )}>
-                        {showGreen ? '+' : '-'}{formatCurrency(tx.amount)}
+                        {formatCurrency(tx.netAmount)}
                       </div>
                       <div className={cn(
                         "text-[11px] font-bold mt-0.5",

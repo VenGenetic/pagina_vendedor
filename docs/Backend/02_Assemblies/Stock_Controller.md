@@ -11,7 +11,7 @@ tags: [inventory, logic]
 The **Stock Controller** is the logical assembly of triggers and functions that enforces stock integrity. It ensures that stock cannot be negative unless explicitly allowed and that every movement is logged.
 
 ## Hierarchy
-- **Parent**: [[Inventory_Management]]
+- **Parent**: [[Motorcycle_Parts_ERP]]
 - **Children**:
     - [[Inventory_Movements]] (Implicit Component)
 

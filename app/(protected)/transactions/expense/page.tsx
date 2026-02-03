@@ -191,7 +191,7 @@ export default function NewExpensePage() {
               <CardContent className="pt-6">
                 <div className="flex justify-between items-center text-xl font-bold">
                   <span>Total:</span>
-                  <span className="text-red-600">-{formatCurrency(parseFloat(amount) || 0)}</span>
+                  <span className="text-red-600">{formatCurrency(-(parseFloat(amount) || 0))}</span>
                 </div>
               </CardContent>
             </Card>
@@ -236,7 +236,7 @@ export default function NewExpensePage() {
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         <div className="font-bold text-red-600 whitespace-nowrap">
-                          -{formatCurrency(Math.abs(tx.amount))}
+                          {formatCurrency(-Math.abs(tx.amount))}
                         </div>
                         <Button
                           variant="ghost"

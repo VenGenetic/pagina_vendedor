@@ -11,7 +11,7 @@ tags: [inventory, automation]
 The **Smart Restock Module** is an intelligent assistant that analyzes sales velocity and margin targets to recommend restock quantities and pricing adjustments.
 
 ## Hierarchy
-- **Parent**: [[Inventory_Management]]
+- **Parent**: [[Motorcycle_Parts_ERP]]
 - **Children**:
     - [[Restock_Algorithm_Logic]]
 

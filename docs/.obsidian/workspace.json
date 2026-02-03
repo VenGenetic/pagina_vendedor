@@ -13,26 +13,15 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "SYSTEM_MAP/03_Components/Product_Catalog.md",
+                "file": "Front_End_Views/01_Pages/Dashboard_View.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Product_Catalog"
-            }
-          },
-          {
-            "id": "e015a8fa811aaa5a",
-            "type": "leaf",
-            "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "title": "Dashboard_View"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -191,43 +180,43 @@
       "bases:Create new base": false
     }
   },
-  "active": "e015a8fa811aaa5a",
+  "active": "b1b91dcad2893f13",
   "lastOpenFiles": [
-    "SYSTEM_MAP/04_Parts/Restock_Algorithm_Logic.md",
-    "SYSTEM_MAP/04_Parts/Transaction_Workflows.md",
+    "Front_End_Views/01_Pages/Restock_Workflow_View.md",
+    "Backend/04_Parts/Sales_Workflow_Laws.md",
+    "Front_End_Views/01_Pages/Inventory_Management_View.md",
+    "Front_End_Views/01_Pages/Financial_Management_View.md",
+    "Front_End_Views/01_Pages/Dashboard_View.md",
+    "Front_End_Views/01_Pages",
+    "Backend/00_Library/Schema_Map.md",
+    "Backend/04_Parts/Inventory_Integrity_Laws.md",
+    "Backend/04_Parts/Financial_Laws.md",
+    "Link to Subsystem.md",
+    "Front_End_Views/Untitled",
+    "Templates/FRONT END.md",
+    "SYSTEM_MAP/MOTORCYCLE_PARTS_ERP.md",
+    "Backend/01_Subsystems/Inventory_Management.md",
+    "Backend/02_Assemblies/State_Synchronization.md",
+    "Backend/02_Assemblies/Data_Integrity_Guardian.md",
+    "Backend/04_Parts/WAC_Governance.md",
+    "Backend/01_Subsystems/Financial_Management.md",
+    "SYSTEM_MAP/00_Library/Motorcycle_Parts_ERP.md",
+    "Backend/02_Assemblies/Smart_Restock_Module.md",
+    "Backend/02_Assemblies/General_Ledger.md",
+    "Backend/02_Assemblies/Stock_Controller.md",
+    "Backend/01_Subsystems/Sales_and_Customers.md",
+    "Backend/04_Parts/Restock_Algorithm_Logic.md",
+    "Backend/04_Parts/Transaction_Workflows.md",
     "SYSTEM_MAP/MAP.md",
     "Templates/The Subsystem_Assembly _The Logic Hub.md",
-    "Link to Subsystem.md",
-    "SYSTEM_MAP/03_Components/Transaction_History.md",
-    "SYSTEM_MAP/01_Subsystems/Financial_Management.md",
-    "SYSTEM_MAP/00_Library/Motorcycle_Parts_ERP.md",
+    "Backend/03_Components/Transaction_History.md",
     "SYSTEM_MAP/00_Library/SYSTEM_MAP - Shortcut.lnk",
-    "SYSTEM_MAP/01_Subsystems/Sales_and_Customers.md",
-    "WALKTHROUGH_DOUBLE_ENTRY.md",
-    "PLAN_DOUBLE_ENTRY.md",
-    "Component_A.md",
-    "Instructions/Documentation_Protocol.md",
-    "SYSTEM_MAP/03_Components/Product_Catalog.md",
-    "SYSTEM_MAP/02_Assemblies/Stock_Controller.md",
-    "SYSTEM_MAP/02_Assemblies/General_Ledger.md",
-    "SYSTEM_MAP/02_Assemblies/Smart_Restock_Module.md",
-    "Templates/The Component (The Implementation).md",
-    "Instructions/Untitled.md",
-    "Instructions/SYSTEM_MAP.md",
-    "System_Library/04_Parts_Pages.md",
-    "System_Library/03_Components_Books.md",
-    "System_Library/01_Subsystems_Sections.md",
-    "System_Library/02_Assemblies_Shelves.md",
-    "SYSTEM_MAP/04_Parts",
-    "SYSTEM_MAP/03_Components",
-    "SYSTEM_MAP/02_Assemblies",
-    "SYSTEM_MAP/01_Subsystems/Inventory_Management.md",
-    "SYSTEM_MAP/01_Subsystems",
-    "SYSTEM_MAP/00_Library",
-    "SYSTEM_MAP",
-    "Map Database.base",
-    "blueprints/T-RPC Functions.md",
-    "blueprints",
-    "Templates"
+    "Backend/04_Parts",
+    "Backend/03_Components",
+    "Backend/02_Assemblies",
+    "Backend/01_Subsystems",
+    "Backend/00_Library",
+    "Backend",
+    "Map Database.base"
   ]
 }

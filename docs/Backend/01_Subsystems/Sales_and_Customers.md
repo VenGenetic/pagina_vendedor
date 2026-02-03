@@ -13,12 +13,11 @@ The **Sales and Customers** subsystem manages the point-of-sale interactions and
 ## Hierarchy
 - **Parent**: [[Motorcycle_Parts_ERP]]
 - **Children**:
-    - [[Point_of_Sale]]
-    - [[Customer_Directory]]
+    - [[State_Synchronization]]
 
 ## Core Responsibilities
 1.  **Customer Profiles**: Managing unique identities via `identity_document` (Cédula/RUC).
-2.  **Sales Processing**: Orchestrating the sale via the `process_sale_transaction` RPC.
+2.  **Sales Processing**: Orchestrating the sale via the `process_sale_transaction` RPC, triggering strictly balanced **Double-Entry** financial records.
 3.  **Historical Preservation**: Enforcing the "Snapshot Rule" to preserve data integrity over time.
 
 ## Data Logic

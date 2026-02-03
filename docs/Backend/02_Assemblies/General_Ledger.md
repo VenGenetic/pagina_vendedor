@@ -11,14 +11,14 @@ tags: [finance, logic]
 The **General Ledger** is the financial heart of the ERP. It ensures data integrity by enforcing **Double-Entry Bookkeeping**, meaning every transaction has a corresponding entry that balances the equation. Uniquely, it implements a **Safe Reversal** policy: transactions are never deleted, only reversed by equal and opposite counter-transactions.
 
 ## Hierarchy
-- **Parent**: [[Financial_Management]]
+- **Parent**: [[Motorcycle_Parts_ERP]]
 - **Children**:
     - [[Transaction_History]]
     - [[Accounts_Payable]] (Future)
     - [[Accounts_Receivable]] (Future)
 
 ## Architected Rules
-1.  **Immutable Ledger**: `DELETE` operations are strictly forbidden on the `transactions` table. Errors are corrected via "Reversal Transactions".
+1.  **Immutable Ledger**: `DELETE` operations are strictly blocked by database triggers on the `transactions` table. Errors are corrected ONLY via "Reversal Transactions".
 2.  **Double Entry**: Every financial movement writes at least two records (e.g., Credit Cash, Debit Inventory Cost).
 3.  **Group Atomic**: Related transactions share a `group_id` to ensure they are processed or reversed as a single unit.
 4.  **Automation**: 

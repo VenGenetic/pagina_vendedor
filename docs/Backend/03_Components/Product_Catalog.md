@@ -11,7 +11,7 @@ tags: [inventory, data]
 The **Product Catalog** is the database of all distinct items available for sale or purchase. It is the "Master Data" for the inventory system.
 
 ## Hierarchy
-- **Parent**: [[Inventory_Management]]
+- **Parent**: [[Motorcycle_Parts_ERP]]
 - **Children**: None
 
 ## Data Structure
@@ -22,8 +22,8 @@ The **Product Catalog** is the database of all distinct items available for sale
     - `cost_price` (Decimal 12,2)
     - `selling_price` (Decimal 12,2)
     - `current_stock` (Integer, default 0, constraint >= 0)
-    - `target_margin` (Numeric 5,4, check < 1.0) - **New**: Desired profit margin (e.g., 0.30 for 30%).
-    - `margin_strategy` (Enum) - **New**: 'FIXED', 'DYNAMIC' (Future).
+    - `target_margin` (Numeric 5,4, check < 1.0) - Desired profit margin (e.g., 0.30 for 30%).
+    - `margin_strategy` (Enum) - 'FIXED', 'DYNAMIC'.
     - `min_stock_level` (Default 5)
     - `max_stock_level` (Default 100)
     - `is_active` (Boolean)

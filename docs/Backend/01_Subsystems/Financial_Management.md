@@ -15,6 +15,7 @@ The **Financial Management** subsystem governs the flow of money. It enforces th
 - **Children**:
     - [[General_Ledger]]
     - [[Transaction_History]]
+    - [[Data_Integrity_Guardian]]
 
 ## Core Responsibilities
 1.  **Account Management**: Tracking balances for Cash, Bank, and Digital Wallets.
@@ -30,32 +31,16 @@ To strictly satisfy `Assets - Liabilities = Equity` (or `Assets + Expenses = Inc
 2.  **Nominal Accounts (Contra)**: 'DÉBITOS' (Expense Offset) and 'CRÉDITOS' (Income Offset). These exist solely to balance the ledger.
     -   *Logic*: A $100 Expense decreases the Asset Account (-$100) and increases the Nominal Expense Account (+$100 implied, or -$100 contra). The sum of all accounts (Real + Nominal) is always 0.
 
-### Dashboard Visibility (Net Balance)
+### Dashboard Visibility (Net Liquid Assets)
 The "Saldo en Cuentas" displayed on the Dashboard is a **Filtered View**:
 -   **Equation**: `Sum(Balance) WHERE is_active=TRUE AND is_nominal=FALSE`.
--   **Purpose**: The user only cares about *Liquid Assets* (Money they can spend). Nominal account balances are hidden from the "Total Balance" card to prevent confusion.
+-   **Purpose**: The user only cares about *Liquid Assets* (Money they can spend). Nominal account balances (Revenue/Expense Offsets) are strictly hidden from the "Total Balance" card and Account Lists to prevent confusion.
 
-## Sales Transaction Flow (Double Entry)
-The sales process is an atomic operation orchestrated by the `process_sale_transaction` RPC. It enforces **Double-Entry Bookkeeping** to ensure financial reality.
+## Transaction Operations
+The subsystem orchestrates complex financial events through specialized workflows.
+1.  **Sales Transaction Flow**: Managed by the Point of Sale and the [[Transaction_Workflows]]. It enforces atomic double-entry commitments.
+2.  **Safe Reversals**: Enforces the "No-Delete" rule via [[Transaction_Workflows]]. Errors are corrected through counter-transactions to preserve audit integrity.
 
-### 1. The Accounting Equation
-Every sale generates TWO financial records linked by a `group_id`:
-1.  **Debit (Asset)**: The money entering the `account_id` (e.g., Cash, Bank). Positive (+) Amount.
-2.  **Credit (Revenue)**: The record of *why* we have money. Recorded in the 'Ingresos por Ventas' account. Negative (-) Amount (Sign-based bookkeeping).
--   **Result**: The sum of the transaction group is 0.
-
-### 2. Logistics & Inventory
--   **Atomicity**: Financials and Inventory are committed together. If one fails, both rollback.
--   **Stock Check**: Uses `FOR UPDATE` row locking to prevent selling out-of-stock items during high concurrency.
--   **Movement Log**: Records an `OUT` movement in `inventory_movements`, which triggers the stock deduction.
-
-### 3. Safe Reversals (The "No-Delete" Rule)
-Transactions are immutable. To undo a mistake or process a refund, we use **Safe Reversals** (`rpc_reverse_transaction`).
--   **Counter-Transaction**: Creating a new transaction (Type: `REFUND`) with the exact opposite values of the original.
--   **Linking**: The new transaction is linked to the original via `related_transaction_id`.
--   **Restoration**:
-    -   Financial balances are automatically adjusted back.
-    -   Inventory is automatically restored (`IN` movement created).
-    -   The original Sale is marked as `CANCELLED`.
+---
 
 

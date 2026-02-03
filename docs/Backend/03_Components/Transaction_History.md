@@ -18,13 +18,14 @@ The **Transaction History** component is the immutable record of all financial m
 - **Entity**: `transactions` table.
 - **Key Fields**:
     - `id` (UUID)
-    - `group_id` (UUID) - **New**: Links related splits (e.g., Sale + Cost of Goods Sold).
+    - `group_id` (UUID) - Links related splits (e.g., Sale + Cost of Goods Sold + Revenue).
     - `type` (INCOME, EXPENSE)
     - `category` (SALE, RESTOCK, ADJUSTMENT, REFUND, OPERATIONAL_EXPENSE)
     - `amount` (Decimal, always positive)
     - `account_id` (FK -> Accounts)
-    - `is_reversal` (Boolean) - **New**: Flags corrective entries.
-    - `reversal_of_id` (UUID) - **New**: Links to the original transaction ID being reversed.
+    - `is_reversed` (Boolean) - Flags transactions that have been effectively cancelled by a reversal.
+    - `related_transaction_id` (UUID) - Links a reversal entry to the specific original transaction line it reverses.
+    - `is_manual_adjustment` (Boolean) - Flags entries created via specific adjustment RPCs.
     - `transaction_date` (Indexed DESC)
     - `payment_method` (Enum: 'CASH', 'CARD', 'TRANSFER', 'CHECK', 'OTHER')
     - `inventory_movement_id` (Optional FK -> inventory_movements)
