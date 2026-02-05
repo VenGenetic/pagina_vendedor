@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
