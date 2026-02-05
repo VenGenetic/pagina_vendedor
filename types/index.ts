@@ -46,6 +46,9 @@ export interface EntradaArticuloVenta {
   precio_unitario: number;
   descuento?: number;
   costo_unitario?: number; // Costo del repuesto al momento de la venta
+  is_dropship?: boolean;
+  provider_name?: string | null;
+  provider_cost?: number;
 }
 
 export interface EntradaCrearVenta {
@@ -73,6 +76,7 @@ export interface EntradaCrearCompra {
   es_ingreso_gratuito?: boolean;
   iva_tax?: number; // IVA percentage (e.g., 15 for 15%)
   profit_margin?: number; // Profit margin percentage (e.g., 65 for 65%)
+  discount_percent?: number; // NEW: C2.6.1 Discount Earnings
   articulos: {
     id_producto: string;
     cantidad: number;

@@ -139,16 +139,19 @@ export async function processPurchase(input: CreatePurchaseInput) {
     const finalAmount = input.es_ingreso_gratuito ? 0 : safeAmount(rawTotal);
 
     // Call Atomic RPC
-    const { data: rpcData, error: transactionError } = await supabase.rpc('process_restock_v2', {
+    const { data: rpcData, error: transactionError } = await (supabase.rpc as any)('process_restock_v3', {
       p_account_id: input.id_cuenta || null, // Can be null if free
       p_provider_name: input.nombre_proveedor || '',
       p_payment_method: input.metodo_pago ? PAYMENT_METHOD_MAP_REVERSE[input.metodo_pago] : 'OTHER',
-      p_amount: finalAmount,
-      p_reference_number: null, // Input doesn't have ref number? Using generic or add if needed.
+      p_total_amount: finalAmount,
+      p_reference_number: null,
       p_notes: input.notas || (input.es_ingreso_gratuito ? 'Ingreso Gratuito' : undefined),
-      p_user_id: user.id === 'Usuario' ? null : user.id, // Handle fallback? user.id is usually valid UUID or null
-      p_items: itemsPayload
-    } as any);
+      p_user_id: user.id === 'Usuario' ? null : user.id,
+      p_items: itemsPayload,
+      p_tax_percent: input.iva_tax || 15,
+      p_margin_percent: input.profit_margin || 65,
+      p_discount_percent: input.discount_percent || 0
+    });
 
     if (transactionError) throw transactionError;
 

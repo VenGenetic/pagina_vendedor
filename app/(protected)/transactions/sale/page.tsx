@@ -20,6 +20,9 @@ interface SaleItem {
   productId: string;
   quantity: number;
   price: number;
+  isDropShip?: boolean;
+  providerName?: string;
+  providerCost?: number;
 }
 
 const RECENT_PRODUCTS_KEY = 'recent-products-v1';
@@ -236,6 +239,9 @@ export default function NewSalePage() {
         id_producto: item.productId,
         cantidad: item.quantity,
         precio_unitario: item.price,
+        is_dropship: item.isDropShip || false,
+        provider_name: item.providerName || null,
+        provider_cost: item.providerCost || 0
       })),
       descuento: discount,
       costo_envio: shippingCost || 0,
@@ -575,59 +581,116 @@ export default function NewSalePage() {
                   const product = filteredProducts?.find((p) => p.id === item.productId) || recentProducts.find(p => p.id === item.productId);
                   const isStockIssue = product ? item.quantity > product.current_stock : false;
                   return (
-                    <div key={index} className={`p-4 flex justify-between items-center gap-4 ${isStockIssue ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
-                      <div className="flex-1">
-                        <p className="font-medium text-slate-800 dark:text-slate-200 text-sm line-clamp-1">
-                          {product?.name || 'Producto'}
-                        </p>
-                        {isStockIssue && (
-                          <p className="text-xs text-red-600 dark:text-red-400 font-bold flex items-center gap-1 mt-0.5">
-                            <AlertCircle className="w-3 h-3" />
-                            Stock insuficiente (Máx: {product?.current_stock})
+                    <div key={index} className={`p-4 flex flex-col gap-2 ${isStockIssue ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1">
+                          <p className="font-medium text-slate-800 dark:text-slate-200 text-sm line-clamp-1">
+                            {product?.name || 'Producto'}
                           </p>
-                        )}
-                        <div className="flex flex-col mt-1">
-                          <p className="text-xs text-blue-600 dark:text-blue-400 font-bold">
-                            {formatCurrency(item.price)} unit.
-                          </p>
-                          {product?.cost_price && (
-                            <div className="flex flex-col">
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                                Costo+IVA: {formatCurrency(product.cost_price * 1.15)}
-                              </p>
-                              <p className="text-[10px] text-amber-600 dark:text-amber-500 font-medium">
-                                Ganancia: {formatCurrency(item.price - (product.cost_price * 1.15))}
-                              </p>
-                            </div>
+                          {isStockIssue && (
+                            <p className="text-xs text-red-600 dark:text-red-400 font-bold flex items-center gap-1 mt-0.5">
+                              <AlertCircle className="w-3 h-3" />
+                              Stock insuficiente (Máx: {product?.current_stock})
+                            </p>
                           )}
+                          <div className="flex flex-col mt-1">
+                            <p className="text-xs text-blue-600 dark:text-blue-400 font-bold">
+                              {formatCurrency(item.price)} unit.
+                            </p>
+                            {product?.cost_price && (
+                              <div className="flex gap-2">
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                  Costo+IVA: {formatCurrency(product.cost_price * 1.15)}
+                                </p>
+                                <p className="text-[10px] text-amber-600 dark:text-amber-500 font-medium">
+                                  Ganancia: {formatCurrency(item.price - (product.cost_price * 1.15))}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (item.quantity > 1) {
+                                setItems(items.map((i, idx) => idx === index ? { ...i, quantity: i.quantity - 1 } : i));
+                              } else {
+                                setItems(items.filter((_, idx) => idx !== index));
+                              }
+                            }}
+                            className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md shadow-sm dark:shadow-none text-slate-600 dark:text-slate-400 transition-all"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-sm font-bold w-4 text-center text-slate-800 dark:text-slate-200">{item.quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setItems(items.map((i, idx) => idx === index ? { ...i, quantity: i.quantity + 1 } : i));
+                            }}
+                            className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md shadow-sm dark:shadow-none text-blue-600 dark:text-blue-400 transition-all"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (item.quantity > 1) {
-                              setItems(items.map((i, idx) => idx === index ? { ...i, quantity: i.quantity - 1 } : i));
-                            } else {
-                              setItems(items.filter((_, idx) => idx !== index));
-                            }
-                          }}
-                          className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md shadow-sm dark:shadow-none text-slate-600 dark:text-slate-400 transition-all"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <span className="text-sm font-bold w-4 text-center text-slate-800 dark:text-slate-200">{item.quantity}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setItems(items.map((i, idx) => idx === index ? { ...i, quantity: i.quantity + 1 } : i));
-                          }}
-                          className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md shadow-sm dark:shadow-none text-blue-600 dark:text-blue-400 transition-all"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                      {/* Drop Ship Toggle - BPMN: Activity_DetectInsufficientStock */}
+                      {isStockIssue && (
+                        <div className="mt-1 pt-2 border-t border-red-200 dark:border-red-900/30 flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-red-700 dark:text-red-400 flex items-center gap-2 uppercase">
+                              <Package className="w-3.5 h-3.5" />
+                              Fulfillment: Drop Ship
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setItems(items.map((i, idx) =>
+                                  idx === index ? { ...i, isDropShip: !i.isDropShip } : i
+                                ));
+                              }}
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${item.isDropShip
+                                ? 'bg-emerald-500 text-white'
+                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                }`}
+                            >
+                              {item.isDropShip ? 'Habilitado' : 'Inactivo'}
+                            </button>
+                          </div>
+
+                          {item.isDropShip && (
+                            <div className="grid grid-cols-2 gap-2 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                              <div className="space-y-1">
+                                <label className="text-[9px] text-slate-500 uppercase font-bold">Proveedor</label>
+                                <input
+                                  type="text"
+                                  placeholder="Nombre..."
+                                  value={item.providerName || ''}
+                                  onChange={(e) => setItems(items.map((i, idx) =>
+                                    idx === index ? { ...i, providerName: e.target.value } : i
+                                  ))}
+                                  className="w-full text-[11px] p-1.5 border rounded bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-7"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[9px] text-slate-500 uppercase font-bold">Costo Prov.</label>
+                                <input
+                                  type="number"
+                                  placeholder="0.00"
+                                  value={item.providerCost || ''}
+                                  onChange={(e) => setItems(items.map((i, idx) =>
+                                    idx === index ? { ...i, providerCost: parseFloat(e.target.value) } : i
+                                  ))}
+                                  className="w-full text-[11px] p-1.5 border rounded bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-7"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -779,123 +842,125 @@ export default function NewSalePage() {
           {/* Spacer for fixed bottom button on mobile */}
           <div className="h-20 md:hidden"></div>
 
-        </form>
+        </form >
 
         {/* Recent History Section */}
-        <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+        < div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800" >
           <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2">
             <Clock className="w-5 h-5 text-slate-500 dark:text-slate-400" />
             Historial Reciente
           </h2>
 
-          {loadingHistory ? (
-            <div className="flex justify-center py-4">
-              <Loader2 className="w-6 h-6 animate-spin text-slate-400 dark:text-slate-500" />
-            </div>
-          ) : recentSales && recentSales.length > 0 ? (
-            <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
-              {recentSales.map((sale) => (
-                <div key={sale.id} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-3 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="font-bold text-slate-800 dark:text-slate-100">
-                        Venta #{sale.sale_number}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                        {formatDateTime(sale.created_at)}
-                      </div>
-                      <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                        {sale.customer_name || 'Consumidor Final'}
-                      </div>
-                      {sale.customer_document && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          CI/RUC: {sale.customer_document}
+          {
+            loadingHistory ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-400 dark:text-slate-500" />
+              </div>
+            ) : recentSales && recentSales.length > 0 ? (
+              <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 lg:grid-cols-3 md:gap-4">
+                {recentSales.map((sale) => (
+                  <div key={sale.id} className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col gap-3 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="font-bold text-slate-800 dark:text-slate-100">
+                          Venta #{sale.sale_number}
                         </div>
-                      )}
-                      {sale.customer_city && (
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          {sale.customer_city} {sale.customer_address ? `- ${sale.customer_address}` : ''}
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          {formatDateTime(sale.created_at)}
                         </div>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-slate-900 dark:text-slate-100">
-                        {formatCurrency(sale.total)}
-                      </div>
-                      <div className={`text-[10px] px-2 py-0.5 rounded-full inline-block mt-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold`}>
-                        PAGADO
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Product Details */}
-                  {sale.items && sale.items.length > 0 && (
-                    <div className="bg-white dark:bg-slate-950 rounded-lg p-2 border border-slate-100 dark:border-slate-800/50 text-xs">
-                      <p className="font-semibold text-slate-500 dark:text-slate-400 mb-1">Detalle:</p>
-                      <div className="space-y-1">
-                        {sale.items.map((item: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-start">
-                            <div className="flex gap-1 text-slate-700 dark:text-slate-300">
-                              <span className="font-bold">{item.quantity}x</span>
-                              <span className="line-clamp-1">{item.product?.name || 'Producto eliminado'}</span>
-                            </div>
-                            <span className="text-slate-500 font-medium">
-                              {formatCurrency(item.quantity * item.unit_price)}
-                            </span>
+                        <div className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                          {sale.customer_name || 'Consumidor Final'}
+                        </div>
+                        {sale.customer_document && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            CI/RUC: {sale.customer_document}
                           </div>
-                        ))}
+                        )}
+                        {sale.customer_city && (
+                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                            {sale.customer_city} {sale.customer_address ? `- ${sale.customer_address}` : ''}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-slate-900 dark:text-slate-100">
+                          {formatCurrency(sale.total)}
+                        </div>
+                        <div className={`text-[10px] px-2 py-0.5 rounded-full inline-block mt-1 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold`}>
+                          PAGADO
+                        </div>
                       </div>
                     </div>
-                  )}
 
-                  {/* Edit and Anular Button */}
-                  <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800 gap-2">
-                    <button
-                      onClick={() => setEditingSale(sale)}
-                      className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-semibold px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      Editar Cliente
-                    </button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <button
-                          className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 font-semibold px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-                          disabled={isDeleting}
-                        >
-                          <Undo2 className="w-4 h-4" />
-                          Revertir
-                        </button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                        <AlertDialogHeader>
-                          <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Revertir esta venta?</AlertDialogTitle>
-                          <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
-                            Esta acción creará una contra-transacción para anular la venta, restaurará el inventario y corregirá el saldo.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700">Cancelar</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => deleteSale(sale.id)}
-                            className="bg-red-600 text-white hover:bg-red-700"
+                    {/* Product Details */}
+                    {sale.items && sale.items.length > 0 && (
+                      <div className="bg-white dark:bg-slate-950 rounded-lg p-2 border border-slate-100 dark:border-slate-800/50 text-xs">
+                        <p className="font-semibold text-slate-500 dark:text-slate-400 mb-1">Detalle:</p>
+                        <div className="space-y-1">
+                          {sale.items.map((item: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-start">
+                              <div className="flex gap-1 text-slate-700 dark:text-slate-300">
+                                <span className="font-bold">{item.quantity}x</span>
+                                <span className="line-clamp-1">{item.product?.name || 'Producto eliminado'}</span>
+                              </div>
+                              <span className="text-slate-500 font-medium">
+                                {formatCurrency(item.quantity * item.unit_price)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Edit and Anular Button */}
+                    <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-800 gap-2">
+                      <button
+                        onClick={() => setEditingSale(sale)}
+                        className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-semibold px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        Editar Cliente
+                      </button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1 font-semibold px-2 py-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                            disabled={isDeleting}
                           >
-                            {isDeleting ? 'Revirtiendo...' : 'Sí, revertir'}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <Undo2 className="w-4 h-4" />
+                            Revertir
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-slate-900 dark:text-slate-100">¿Revertir esta venta?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-slate-600 dark:text-slate-400">
+                              Esta acción creará una contra-transacción para anular la venta, restaurará el inventario y corregirá el saldo.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel className="bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700">Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteSale(sale.id)}
+                              className="bg-red-600 text-white hover:bg-red-700"
+                            >
+                              {isDeleting ? 'Revirtiendo...' : 'Sí, revertir'}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-slate-400 dark:text-slate-500 text-sm italic">
-              No hay ventas recientes
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-slate-400 dark:text-slate-500 text-sm italic">
+                No hay ventas recientes
+              </div>
+            )
+          }
+        </div >
+      </main >
+    </div >
   );
 }

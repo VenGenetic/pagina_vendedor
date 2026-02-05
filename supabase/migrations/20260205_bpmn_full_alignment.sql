@@ -546,7 +546,7 @@ CREATE OR REPLACE FUNCTION process_sale_with_reservation(
     p_total DECIMAL,
     p_account_id UUID,
     p_payment_method TEXT,
-    p_items JSONB, -- [{product_id, quantity, price, discount, cost_unit, reservation_id}]
+    p_items JSONB, -- [{product_id, quantity, price, discount, cost_unit, reservation_id, is_dropship, provider_name, provider_cost}]
     p_user_id UUID,
     p_customer_phone TEXT DEFAULT NULL,
     p_customer_email TEXT DEFAULT NULL,
@@ -575,16 +575,28 @@ DECLARE
     v_item_discount DECIMAL;
     v_cost_unit DECIMAL;
     v_reservation_id UUID;
+    v_is_dropship BOOLEAN;
+    v_provider_name TEXT;
+    v_provider_cost DECIMAL;
     v_current_stock INTEGER;
     v_product_name TEXT;
     v_item_subtotal DECIMAL;
     v_movement_id UUID;
     v_group_id UUID := uuid_generate_v4();
     v_commit_result JSONB;
+    v_ds_order_id UUID;
+    v_ds_expense_id UUID;
 BEGIN
-    -- 1. BPMN: Validate and Commit all reservations first
+    -- 1. BPMN: Validate and Commit reservations / Check stock
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
+        v_is_dropship := COALESCE((v_item->>'is_dropship')::BOOLEAN, FALSE);
+        
+        IF v_is_dropship THEN
+            -- Skip local stock check for drop ship items
+            CONTINUE;
+        END IF;
+
         v_reservation_id := (v_item->>'reservation_id')::UUID;
         
         IF v_reservation_id IS NOT NULL THEN
@@ -595,7 +607,7 @@ BEGIN
                 RAISE EXCEPTION 'Failed to commit reservation: %', v_commit_result->>'error';
             END IF;
         ELSE
-            -- Legacy mode: Direct stock check (for backward compatibility)
+            -- Legacy/Direct mode: Stock check
             v_product_id := (v_item->>'product_id')::UUID;
             v_quantity := (v_item->>'quantity')::INTEGER;
             
@@ -609,7 +621,7 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- 2. Customer Upsert (same as before)
+    -- 2. Customer Upsert
     IF p_customer_id_number IS NOT NULL AND p_customer_id_number != '' THEN
         SELECT id INTO v_customer_id FROM customers WHERE identity_document = p_customer_id_number;
         
@@ -629,7 +641,7 @@ BEGIN
         END IF;
     END IF;
 
-    -- 3. Create Sale Record with source
+    -- 3. Create Sale Record
     INSERT INTO sales (
         sale_number, customer_id, customer_name, customer_phone, customer_email,
         subtotal, tax, discount, total, account_id, payment_status, notes, source
@@ -645,31 +657,71 @@ BEGIN
         v_quantity := (v_item->>'quantity')::INTEGER;
         v_price := (v_item->>'price')::DECIMAL;
         v_item_discount := COALESCE((v_item->>'discount')::DECIMAL, 0);
-        v_cost_unit := COALESCE((v_item->>'cost_unit')::DECIMAL, 0);
-        
         v_item_subtotal := (v_quantity * v_price) - v_item_discount;
-
-        -- Create Inventory Movement (OUT)
-        INSERT INTO inventory_movements (
-            product_id, type, quantity_change, unit_price, total_value,
-            reason, notes, created_by
-        ) VALUES (
-            v_product_id, 'OUT', -v_quantity, v_price, v_item_subtotal,
-            'SALE', 'Venta ' || p_sale_number, p_user_id
-        ) RETURNING id INTO v_movement_id;
-
-        -- Create Sale Item
-        INSERT INTO sale_items (
-            sale_id, product_id, quantity, unit_price, discount, subtotal, inventory_movement_id
-        ) VALUES (
-            v_sale_id, v_product_id, v_quantity, v_price, v_item_discount, v_item_subtotal, v_movement_id
-        );
+        v_is_dropship := COALESCE((v_item->>'is_dropship')::BOOLEAN, FALSE);
         
-        -- Log demand hit for restocking suggestions
-        PERFORM log_demand_hit(v_product_id, 'SALE', v_quantity, p_source, v_sale_id);
+        IF v_is_dropship THEN
+            v_provider_name := v_item->>'provider_name';
+            v_provider_cost := COALESCE((v_item->>'provider_cost')::DECIMAL, 0);
+
+            -- BPMN: Drop Shipping Enrollment
+            INSERT INTO dropship_orders (
+                sale_id, product_id, quantity, customer_price, provider_cost, 
+                provider_name, transaction_group_id, status
+            ) VALUES (
+                v_sale_id, v_product_id, v_quantity, v_price, v_provider_cost,
+                v_provider_name, v_group_id, 'CONFIRMED'
+            ) RETURNING id INTO v_ds_order_id;
+
+            -- BPMN: Activity_RecordFinancial (Provider Expense)
+            -- We assume the provider is paid from the same account or main cash
+            IF v_provider_cost > 0 THEN
+                INSERT INTO transactions (
+                    type, amount, description, account_id, payment_method, 
+                    reference_number, notes, group_id, created_by, transaction_date
+                ) VALUES (
+                    'EXPENSE', v_provider_cost * v_quantity, 
+                    'Provider DS: ' || COALESCE(v_provider_name, 'Proveedor') || ' (Sale ' || p_sale_number || ')',
+                    p_account_id, 'OTHER', 'DS-' || v_ds_order_id, 
+                    'Costo de mercancia Drop Ship', v_group_id, p_user_id, NOW()
+                ) RETURNING id INTO v_ds_expense_id;
+            END IF;
+
+            -- Sale Item record (linked to DS order instead of movement)
+            INSERT INTO sale_items (
+                sale_id, product_id, quantity, unit_price, discount, subtotal
+            ) VALUES (
+                v_sale_id, v_product_id, v_quantity, v_price, v_item_discount, v_item_subtotal
+            );
+
+            -- Log demand as Drop Ship
+            PERFORM log_demand_hit(v_product_id, 'DROPSHIP', v_quantity, p_source, v_sale_id);
+        ELSE
+            -- Normal Inventory Item
+            v_cost_unit := COALESCE((v_item->>'cost_unit')::DECIMAL, 0);
+            
+            -- Create Inventory Movement (OUT)
+            INSERT INTO inventory_movements (
+                product_id, type, quantity_change, unit_price, total_value,
+                reason, notes, created_by
+            ) VALUES (
+                v_product_id, 'OUT', -v_quantity, v_price, v_item_subtotal,
+                'SALE', 'Venta ' || p_sale_number, p_user_id
+            ) RETURNING id INTO v_movement_id;
+
+            -- Create Sale Item
+            INSERT INTO sale_items (
+                sale_id, product_id, quantity, unit_price, discount, subtotal, inventory_movement_id
+            ) VALUES (
+                v_sale_id, v_product_id, v_quantity, v_price, v_item_discount, v_item_subtotal, v_movement_id
+            );
+            
+            -- Log demand hit for restocking suggestions
+            PERFORM log_demand_hit(v_product_id, 'SALE', v_quantity, p_source, v_sale_id);
+        END IF;
     END LOOP;
 
-    -- 5. Create Income Transaction
+    -- 5. Create Income Transaction (Total customer payment)
     INSERT INTO transactions (
         type, amount, description, account_id, payment_method, 
         reference_number, notes, group_id, created_by, created_by_name, transaction_date
@@ -678,7 +730,7 @@ BEGIN
         p_account_id, p_payment_method, p_sale_number, p_notes, v_group_id, p_user_id, p_user_name, NOW()
     ) RETURNING id INTO v_transaction_id;
 
-    -- 6. Create Shipping Expense (if applicable)
+    -- 6. Create Shipping Expense
     IF p_shipping_cost > 0 AND p_shipping_account_id IS NOT NULL THEN
         INSERT INTO transactions (
             type, amount, description, account_id, payment_method,
@@ -698,8 +750,6 @@ BEGIN
     );
 
 EXCEPTION WHEN OTHERS THEN
-    -- BPMN: BoundaryEvent_SaleFail - Release any reservations on failure
-    -- (Reservations are auto-released by expiry, but we could explicitly release here)
     RAISE;
 END;
 $$;
@@ -863,19 +913,30 @@ ALTER TABLE stock_reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE dropship_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_alerts ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow authenticated read demand_hits" ON demand_hits;
 CREATE POLICY "Allow authenticated read demand_hits" ON demand_hits FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated insert demand_hits" ON demand_hits;
 CREATE POLICY "Allow authenticated insert demand_hits" ON demand_hits FOR INSERT TO authenticated WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow authenticated read stock_reservations" ON stock_reservations;
 CREATE POLICY "Allow authenticated read stock_reservations" ON stock_reservations FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated insert stock_reservations" ON stock_reservations;
 CREATE POLICY "Allow authenticated insert stock_reservations" ON stock_reservations FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow authenticated update stock_reservations" ON stock_reservations;
 CREATE POLICY "Allow authenticated update stock_reservations" ON stock_reservations FOR UPDATE TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Allow authenticated read dropship_orders" ON dropship_orders;
 CREATE POLICY "Allow authenticated read dropship_orders" ON dropship_orders FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated insert dropship_orders" ON dropship_orders;
 CREATE POLICY "Allow authenticated insert dropship_orders" ON dropship_orders FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow authenticated update dropship_orders" ON dropship_orders;
 CREATE POLICY "Allow authenticated update dropship_orders" ON dropship_orders FOR UPDATE TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Allow authenticated read admin_alerts" ON admin_alerts;
 CREATE POLICY "Allow authenticated read admin_alerts" ON admin_alerts FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "Allow authenticated insert admin_alerts" ON admin_alerts;
 CREATE POLICY "Allow authenticated insert admin_alerts" ON admin_alerts FOR INSERT TO authenticated WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow authenticated update admin_alerts" ON admin_alerts;
 CREATE POLICY "Allow authenticated update admin_alerts" ON admin_alerts FOR UPDATE TO authenticated USING (true);
 
 -- Final comment

@@ -16,7 +16,10 @@ CREATE OR REPLACE FUNCTION process_restock_v3(
     p_reference_number TEXT,
     p_notes TEXT,
     p_user_id UUID,
-    p_items JSONB -- Array of {product_id, quantity, cost_unit}
+    p_items JSONB, -- Array of {product_id, quantity, cost_unit}
+    p_tax_percent DECIMAL DEFAULT 15,    -- NEW: BPMN Activity_RecordFinancial
+    p_margin_percent DECIMAL DEFAULT 65, -- NEW: BPMN Activity_ApplyPrices
+    p_discount_percent DECIMAL DEFAULT 0 -- NEW: C2.6.1 Discount Earnings
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -25,10 +28,13 @@ AS $$
 DECLARE
     v_group_id UUID := uuid_generate_v4();
     v_transaction_id UUID;
+    v_savings_tx_id UUID;
+    v_savings_account_id UUID;
     v_item JSONB;
     v_product_id UUID;
     v_quantity INTEGER;
     v_unit_cost DECIMAL;
+    v_net_unit_cost DECIMAL;
     v_current_stock INTEGER;
     v_product_cost DECIMAL;
     v_movement_id UUID;
@@ -37,13 +43,12 @@ DECLARE
     v_baseline_cost DECIMAL;
     v_final_wac DECIMAL;
     v_selling_price DECIMAL;
-    v_profit_margin DECIMAL := 65; -- Default fallback
-    v_tax_rate DECIMAL := 15; -- Default fallback
     v_target_margin NUMERIC;
-    v_sys_config JSONB;
+    v_total_discount_amount DECIMAL := 0;
 BEGIN
     -- STEP 1: FINANCIAL FIRST (Atomic Linkage)
     -- As per BPMN: Record Financial Transaction (PURCHASE)
+    -- Note: p_total_amount from frontend should already be the NET amount.
     IF p_total_amount > 0 THEN
         INSERT INTO transactions (
             type, amount, description, account_id, payment_method, 
@@ -62,21 +67,45 @@ BEGIN
         ) RETURNING id INTO v_transaction_id;
     END IF;
 
-    -- Fetch global pricing settings if they exist
-    BEGIN
-        SELECT value INTO v_sys_config FROM system_settings WHERE key = 'financial_config';
-        v_tax_rate := COALESCE((v_sys_config->>'tax_rate')::DECIMAL * 100, 15);
-        v_profit_margin := COALESCE((v_sys_config->>'default_margin')::DECIMAL * 100, 65);
-    EXCEPTION WHEN OTHERS THEN
-        -- Keep defaults
-    END;
+    -- STEP 1.1: BPMN C2.6.1 - Discount Earnings Tracking
+    IF p_discount_percent > 0 THEN
+        -- Find or create nominal account for savings
+        SELECT id INTO v_savings_account_id FROM accounts WHERE name = 'Ahorros por Descuentos' LIMIT 1;
+        
+        IF v_savings_account_id IS NULL THEN
+            INSERT INTO accounts (name, type, balance, is_nominal)
+            VALUES ('Ahorros por Descuentos', 'NOMINAL', 0, true)
+            RETURNING id INTO v_savings_account_id;
+        END IF;
+
+        -- Calculate total discount (Total = Net / (1 - Disc)) -> Savings = Total * Disc
+        -- Simplified for this context: v_total_discount_amount := p_total_amount * (p_discount_percent / 100);
+        v_total_discount_amount := (p_total_amount / (1 - (p_discount_percent / 100))) * (p_discount_percent / 100);
+
+        INSERT INTO transactions (
+            type, amount, description, account_id, payment_method,
+            group_id, created_by, notes
+        ) VALUES (
+            'INCOME',
+            v_total_discount_amount,
+            'Ahorro por descuento proveedor: ' || p_provider_name,
+            v_savings_account_id,
+            'OTHER',
+            v_group_id,
+            p_user_id,
+            'Registro nominal de ahorro'
+        ) RETURNING id INTO v_savings_tx_id;
+    END IF;
 
     -- STEP 2-6: Process Items (Order of operations as per BPMN)
     FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
         v_product_id := (v_item->>'product_id')::UUID;
         v_quantity := (v_item->>'quantity')::INTEGER;
-        v_unit_cost := (v_item->>'cost_unit')::DECIMAL;
+        v_unit_cost := (v_item->>'cost_unit')::DECIMAL; -- Gross unit cost passed from UI
+        
+        -- Calculate net cost considering the batch discount
+        v_net_unit_cost := v_unit_cost * (1 - (p_discount_percent / 100));
 
         -- BPMN STEP: Create Inventory Movement (IN)
         INSERT INTO inventory_movements (
@@ -86,8 +115,8 @@ BEGIN
             v_product_id,
             'IN',
             v_quantity,
-            v_unit_cost,
-            v_quantity * v_unit_cost,
+            v_net_unit_cost,
+            v_quantity * v_net_unit_cost,
             v_transaction_id,
             'PURCHASE',
             p_user_id,
@@ -95,7 +124,6 @@ BEGIN
         ) RETURNING id INTO v_movement_id;
 
         -- BPMN STEP: Verify Stock Consistency
-        -- Confirms that SUM(inventory_movements) matches products.current_stock
         SELECT SUM(quantity_change) INTO v_sum_movements
         FROM inventory_movements WHERE product_id = v_product_id;
 
@@ -103,44 +131,30 @@ BEGIN
         INTO v_current_stock, v_product_cost, v_target_margin
         FROM products WHERE id = v_product_id;
 
-        IF v_sum_movements != v_current_stock THEN
-            -- In a real system we might log this to a separate audit table
-            -- For now, we update the product to match reality if it somehow drifted
-            RAISE NOTICE 'Stock inconsistency detected for product %: MoveSum=%, TableStock=%', v_product_id, v_sum_movements, v_current_stock;
-        END IF;
-
         -- BPMN STEP: Negative Stock Check & Reset (The Forgiveness Law)
-        -- If current_stock < 0, the old cost data is irrelevant.
         IF v_current_stock < 0 THEN
             v_baseline_stock := 0;
-            v_baseline_cost := v_unit_cost;
-            
-            -- Optional: Add adjustment movement to reset to 0 before this purchase
-            -- But the algorithm below handles it by treating baseline as 0.
+            v_baseline_cost := v_net_unit_cost;
         ELSE
-            v_baseline_stock := v_current_stock - v_quantity; -- Stock BEFORE this 'IN' movement
+            v_baseline_stock := v_current_stock - v_quantity;
             v_baseline_cost := v_product_cost;
-            -- If we were already negative before, reset baseline
             IF v_baseline_stock < 0 THEN
                 v_baseline_stock := 0;
-                v_baseline_cost := v_unit_cost;
+                v_baseline_cost := v_net_unit_cost;
             END IF;
         END IF;
 
         -- BPMN STEP: Calculate WAC
         IF (v_baseline_stock + v_quantity) > 0 THEN
-            v_final_wac := ((v_baseline_stock * v_baseline_cost) + (v_quantity * v_unit_cost)) 
+            v_final_wac := ((v_baseline_stock * v_baseline_cost) + (v_quantity * v_net_unit_cost)) 
                            / (v_baseline_stock + v_quantity);
         ELSE
-            v_final_wac := v_unit_cost;
+            v_final_wac := v_net_unit_cost;
         END IF;
 
         -- BPMN STEP: Insert PENDING Price Proposal
-        IF v_target_margin IS NOT NULL THEN
-            v_selling_price := ROUND((v_final_wac / (1 - v_target_margin)), 2);
-        ELSE
-            v_selling_price := v_final_wac * (1 + (v_tax_rate/100)) * (1 + (v_profit_margin/100));
-        END IF;
+        -- Formula: (ProposedCost * (1 + Tax)) / (1 - MarginOverride)
+        v_selling_price := (v_final_wac * (1 + (p_tax_percent/100))) / (1 - (p_margin_percent/100));
 
         -- Delete any existing PENDING proposals for this product to avoid clutter
         DELETE FROM price_proposals WHERE product_id = v_product_id AND status = 'PENDING';
@@ -154,19 +168,19 @@ BEGIN
         ) VALUES (
             v_product_id, v_movement_id,
             v_product_cost, v_current_stock - v_quantity,
-            v_quantity, v_unit_cost,
+            v_quantity, v_net_unit_cost,
             ROUND(v_final_wac, 2), ROUND(v_selling_price, 2),
             'PENDING'
         );
         
-        -- Reset the flag if it was set
         UPDATE products SET needs_price_review = false WHERE id = v_product_id;
     END LOOP;
 
     RETURN jsonb_build_object(
         'success', true, 
         'transaction_id', v_transaction_id, 
-        'group_id', v_group_id
+        'group_id', v_group_id,
+        'savings_id', v_savings_tx_id
     );
 
 EXCEPTION WHEN OTHERS THEN

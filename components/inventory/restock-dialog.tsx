@@ -26,7 +26,7 @@ import {
 import { Producto } from '@/types';
 import { supabase } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/utils';
-import { TrendingUp, Loader2, CreditCard, Building2 } from 'lucide-react';
+import { TrendingUp, Loader2, CreditCard, Building2, Sparkles, TrendingDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys, useAccounts } from '@/hooks/use-queries';
@@ -38,6 +38,9 @@ const restockSchema = z.object({
     account_id: z.string().min(1, 'Seleccione una cuenta'),
     provider_name: z.string().optional(),
     payment_method: z.enum(['CASH', 'CARD', 'TRANSFER', 'CHECK', 'OTHER']).default('CASH'),
+    tax_percent: z.coerce.number().min(0).max(100).default(15),           // BPMN: Activity_RecordFinancial
+    margin_target: z.coerce.number().min(1).max(99).default(65),          // BPMN: Activity_ApplyPrices
+    discount_percent: z.coerce.number().min(0).max(100).default(0),       // BPMN: C2.6.1 Discount Earnings
 });
 
 type RestockFormValues = z.infer<typeof restockSchema>;
@@ -52,6 +55,15 @@ export function RestockDialog({ product, trigger }: RestockDialogProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const queryClient = useQueryClient();
 
+    // BPMN: Activity_QueryDemandStudy - Demand suggestion state
+    const [demandData, setDemandData] = useState<{
+        suggestedQty: number;
+        velocity30d: number;
+        priceDropDetected: boolean;
+        previousCost: number | null;
+    } | null>(null);
+    const [loadingDemand, setLoadingDemand] = useState(false);
+
     // Fetch accounts for the dropdown
     const { data: accounts, isLoading: accountsLoading } = useAccounts();
 
@@ -64,6 +76,9 @@ export function RestockDialog({ product, trigger }: RestockDialogProps) {
             account_id: '',
             provider_name: '',
             payment_method: 'CASH',
+            tax_percent: 15,
+            margin_target: product.target_margin ? product.target_margin * 100 : 65,
+            discount_percent: 0,
         }
     });
 
@@ -81,23 +96,57 @@ export function RestockDialog({ product, trigger }: RestockDialogProps) {
         }
     }, [accounts, setValue, watch]);
 
+    // BPMN: Activity_QueryDemandStudy - Fetch demand suggestions when dialog opens
+    useEffect(() => {
+        if (open && product.id) {
+            setLoadingDemand(true);
+            (supabase.rpc as any)('query_demand_study', {
+                p_product_ids: [product.id]
+            }).then(({ data, error }: any) => {
+                if (!error && data && data.length > 0) {
+                    const item = data[0];
+                    const velocity = item.velocity_30d || 0;
+                    // Suggest 30 days of stock based on velocity
+                    const suggested = Math.max(1, Math.ceil(velocity * 30));
+                    setDemandData({
+                        suggestedQty: suggested,
+                        velocity30d: velocity,
+                        priceDropDetected: item.previous_cost > product.cost_price,
+                        previousCost: item.previous_cost || null
+                    });
+                }
+            }).finally(() => setLoadingDemand(false));
+        }
+    }, [open, product.id, product.cost_price]);
+
     const watchedCost = watch('unit_cost');
+    const watchedMargin = watch('margin_target');
+    const watchedTax = watch('tax_percent');
+    const watchedDiscount = watch('discount_percent');
+
     const [previewPrice, setPreviewPrice] = useState<number | null>(null);
 
-    // Calculate preview price when cost changes
+    // Calculate preview price when inputs change (BPMN: Activity_CalculateWAC / Activity_ApplyPrices)
     useEffect(() => {
-        if (product.target_margin && watchedCost > 0) {
-            const margin = product.target_margin;
-            if (margin >= 1) return;
-            const newPrice = watchedCost / (1 - margin);
-            setPreviewPrice(newPrice);
+        if (watchedCost > 0) {
+            // Formula: Unit Cost (Net) * (1 + Tax) * (1 / (1 - Margin))
+            // BUT the standard formula in EC is actually simpler for retail: Cost * (1 + Tax) * (1 + ProfitPerc)
+            // The BPMN analysis refined this: Cost / (1 - Margin) is for Gross Margin calculation.
+
+            const netCost = watchedCost * (1 - (watchedDiscount / 100));
+            const marginDec = watchedMargin / 100;
+            const taxDec = watchedTax / 100;
+
+            // Using the refined formula: (Cost * (1 + Tax)) / (1 - MarginTarget) 
+            // This ensures target margin is calculated AFTER taxes.
+            const costWithTax = netCost * (1 + taxDec);
+            const suggestedPrice = costWithTax / (1 - marginDec);
+
+            setPreviewPrice(Math.round(suggestedPrice * 100) / 100);
         } else {
-            // Default: Use 65% margin + 16% tax calculation
-            const wac = watchedCost;
-            const suggestedPrice = wac * 1.16 * 1.65;
-            setPreviewPrice(suggestedPrice);
+            setPreviewPrice(null);
         }
-    }, [watchedCost, product.target_margin]);
+    }, [watchedCost, watchedMargin, watchedTax, watchedDiscount]);
 
     const onSubmit = async (data: RestockFormValues) => {
         setIsSubmitting(true);
@@ -117,6 +166,9 @@ export function RestockDialog({ product, trigger }: RestockDialogProps) {
                 p_reference_number: null,
                 p_notes: null,
                 p_user_id: user?.id || null,
+                p_tax_percent: data.tax_percent,
+                p_margin_percent: data.margin_target,
+                p_discount_percent: data.discount_percent,
                 p_items: [{
                     product_id: product.id,
                     quantity: data.quantity,
@@ -198,6 +250,43 @@ export function RestockDialog({ product, trigger }: RestockDialogProps) {
                         </div>
                     </div>
 
+                    {/* BPMN: Activity_QueryDemandStudy - Demand Suggestions */}
+                    {loadingDemand ? (
+                        <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Consultando historial de demanda...
+                        </div>
+                    ) : demandData && (
+                        <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-3 border border-blue-200 dark:border-blue-800 space-y-2">
+                            <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300">
+                                <Sparkles className="h-4 w-4" />
+                                Sugerencia de Demanda
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                    <span className="text-slate-500 dark:text-slate-400">Ventas/día:</span>
+                                    <span className="ml-2 font-medium">{demandData.velocity30d.toFixed(2)}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-500 dark:text-slate-400">Sugerido (30d):</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setValue('quantity', demandData.suggestedQty)}
+                                        className="ml-2 font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                        {demandData.suggestedQty} unidades
+                                    </button>
+                                </div>
+                            </div>
+                            {demandData.priceDropDetected && demandData.previousCost && (
+                                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-2 rounded">
+                                    <TrendingDown className="h-4 w-4" />
+                                    ¡Precio bajó! Antes: {formatCurrency(demandData.previousCost)}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Financial Information (BPMN: Activity_RecordFinancial) */}
                     <div className="border-t pt-4 space-y-4">
                         <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -256,6 +345,34 @@ export function RestockDialog({ product, trigger }: RestockDialogProps) {
                                 placeholder="Nombre del proveedor..."
                                 {...register('provider_name')}
                             />
+                        </div>
+
+                        {/* Financial Correction Fields - BPMN Phase 2 */}
+                        <div className="grid grid-cols-3 gap-3 pt-2 border-t mt-2">
+                            <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">IVA %</Label>
+                                <Input
+                                    type="number"
+                                    {...register('tax_percent')}
+                                    className="h-8 text-xs text-right"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Margen %</Label>
+                                <Input
+                                    type="number"
+                                    {...register('margin_target')}
+                                    className="h-8 text-xs text-right"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label className="text-[10px] uppercase font-bold text-slate-500">Desc %</Label>
+                                <Input
+                                    type="number"
+                                    {...register('discount_percent')}
+                                    className="h-8 text-xs text-right"
+                                />
+                            </div>
                         </div>
                     </div>
 
