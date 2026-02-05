@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "Front_End_Views/01_Pages/Dashboard_View.md",
+                "file": "Backend/01_Subsystems/Financial_Management.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Dashboard_View"
+              "title": "Financial_Management"
             }
           }
         ]
@@ -182,11 +182,11 @@
   },
   "active": "b1b91dcad2893f13",
   "lastOpenFiles": [
+    "Front_End_Views/01_Pages/Dashboard_View.md",
     "Front_End_Views/01_Pages/Restock_Workflow_View.md",
     "Backend/04_Parts/Sales_Workflow_Laws.md",
     "Front_End_Views/01_Pages/Inventory_Management_View.md",
     "Front_End_Views/01_Pages/Financial_Management_View.md",
-    "Front_End_Views/01_Pages/Dashboard_View.md",
     "Front_End_Views/01_Pages",
     "Backend/00_Library/Schema_Map.md",
     "Backend/04_Parts/Inventory_Integrity_Laws.md",

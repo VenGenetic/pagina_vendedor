@@ -1,3 +1,17 @@
+/**
+ * Reversal Test Script
+ * 
+ * BPMN Reference: Financial_Management_Process.bpmn
+ * Tests: Reversal Flow (With Correlation)
+ * 
+ * Validates:
+ * - Group validation (Activity_ReverseTransactionRPC)
+ * - Clone & Invert (Activity_MirrorGroup)
+ * - Original marked is_reversed = TRUE
+ * - Refund transaction created with related_transaction_id
+ * 
+ * Run: npx tsx scripts/test-reversal.ts
+ */
 
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';

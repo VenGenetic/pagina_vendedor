@@ -1,7 +1,16 @@
+-- ============================================
 -- Sync Transaction Logic
+-- ============================================
 -- Description: This script synchronizes the backend functions and triggers with the documented workflows.
 -- It acts as a "Source of Truth" application to ensure the database logic matches the code and documentation.
 -- Includes fixes for: Missing sales columns, Payment Method Mapping, and Trigger Logic.
+--
+-- BPMN References:
+--   Financial_Management_Process.bpmn: Reversal Flow, Transfer Flow
+--   Sales_Process.bpmn: Sale Execution Subprocess
+-- 
+-- This file is the canonical source for trigger logic synchronization.
+-- ============================================
 
 BEGIN;
 

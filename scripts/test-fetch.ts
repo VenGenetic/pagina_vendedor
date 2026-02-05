@@ -18,9 +18,9 @@ async function testFetch() {
     try {
         const response = await fetch(`${url}/rest/v1/accounts?select=count`, {
             headers: {
-                'apikey': key,
+                'apikey': key as string,
                 'Authorization': `Bearer ${key}`
-            }
+            } as Record<string, string>
         });
 
         console.log('Status:', response.status);

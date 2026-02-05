@@ -10,6 +10,9 @@ tags: [finance, logic, ledger]
 ## Description
 The **Financial Laws** part governs all monetary movements within the system. It ensures that every cent is accounted for through strict double-entry principles and immutable ledger records.
 
+> [!NOTE]
+> **BPMN Reference**: These laws are formally modeled in [[Financial_Management_Process.bpmn]].
+
 ## Governing Laws
 
 ### 1. The Law of Conservation (Zero-Sum Principle)
@@ -33,6 +36,21 @@ Moving money between accounts is a single atomic operation handled by the system
     3. Both entries share the same `group_id`.
 - **Logic**: Handled via the `transfer_funds` RPC to ensure both sides of the transfer occur or neither does.
 
+### 4. The Law of Saga Compensation
+**BPMN**: Financial_Management_Process.bpmn → Transfer Flow (Full Saga)
+
+When a multi-step financial operation fails mid-execution, the system must compensate by reversing completed steps.
+- **Transfer Scenario**:
+    1. If the **credit leg fails** after debit succeeds → compensate by reversing the debit.
+    2. If **compensation fails** → escalate to manual intervention (Activity_ManualIntervention).
+- **Error Codes**:
+    - `ERR_TRANSFER_001`: Credit failed, compensation triggered.
+    - `ERR_COMPENSATE_001`: Compensation failed, manual intervention required.
+- **PostgreSQL Implementation**: ACID transactions handle this automatically. The entire transfer occurs atomically—both succeed or both fail.
+
+> [!IMPORTANT]
+> The Saga Pattern is modeled in BPMN for documentation clarity. In practice, PostgreSQL's transactional guarantees make explicit compensation code unnecessary.
+
 ## Logic Loop: Account Balance Update
 1. **Insert**: A new entry is added to the `transactions` table.
 2. **Trigger**: `trigger_update_account_balance` fires.
@@ -47,3 +65,4 @@ Moving money between accounts is a single atomic operation handled by the system
 ## Dependencies
 - **Accounts**: Relies on the `accounts` table for current balances.
 - **Transaction Types**: Strictly checked against `INCOME`, `EXPENSE`, `TRANSFER`, `REFUND`.
+

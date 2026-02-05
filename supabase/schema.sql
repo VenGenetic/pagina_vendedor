@@ -194,7 +194,7 @@ CREATE TABLE sales (
   
   -- Payment
   account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE RESTRICT,
-  payment_status VARCHAR(20) DEFAULT 'PAID' CHECK (payment_status IN ('PAID', 'PENDING', 'PARTIAL', 'CANCELLED')),
+  payment_status VARCHAR(20) DEFAULT 'PAID' CHECK (payment_status IN ('PAID', 'PENDING', 'PARTIAL', 'CANCELLED', 'REVERSED')),
   
   -- Metadata
   sale_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

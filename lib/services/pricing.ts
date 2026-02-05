@@ -16,6 +16,7 @@ export interface PriceProposal {
         name: string;
         sku: string;
         image_url: string | null;
+        needs_price_review?: boolean;
     };
 }
 
@@ -34,7 +35,8 @@ export async function getPendingProposals() {
       products (
         name,
         sku,
-        image_url
+        image_url,
+        needs_price_review
       )
     `)
         .eq('status', 'PENDING')

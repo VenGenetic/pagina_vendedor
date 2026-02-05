@@ -143,7 +143,7 @@ BEGIN
      
      IF v_sale_record IS NOT NULL THEN
         -- Cancel Sale Status
-        UPDATE sales SET payment_status = 'CANCELLED', updated_at = NOW() WHERE id = v_sale_record.id;
+        UPDATE sales SET payment_status = 'REVERSED', updated_at = NOW() WHERE id = v_sale_record.id;
         
         -- Restore Items
         FOR v_sale_item IN SELECT * FROM sale_items WHERE sale_id = v_sale_record.id LOOP

@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_Restock"
+                  targetNamespace="http://menards.com/bpmn/restock"
+                  exporter="Camunda Modeler" exporterVersion="5.16.0">
+  <bpmn:collaboration id="Collaboration_Restock">
+    <bpmn:participant id="Participant_Restock" name="Restock Process (Atomic Linkage)" processRef="Process_Restock" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Restock" name="Inventory Restock with Atomic Linkage" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_Restock">
+      <bpmn:lane id="Lane_Admin" name="Admin (Frontend)">
+        <bpmn:flowNodeRef>StartEvent_Restock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_EnterRestock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ReviewProposals</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_ApproveReject</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_RestockComplete</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_System" name="System (External Workers)">
+        <bpmn:flowNodeRef>Activity_RecordFinancial</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_UpdateStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_VerifyConsistency</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_NegativeStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ResetNegativeStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_CalculateWAC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_QuarantineProposal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ApplyPrices</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_RejectProposal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_FlagBatchForReview</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BoundaryEvent_FinancialFail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_RestockAborted</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <bpmn:startEvent id="StartEvent_Restock" name="Restock Needed">
+      <bpmn:outgoing>Flow_R1</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:userTask id="Activity_EnterRestock" name="Enter Items &#38; Provider Details">
+      <bpmn:incoming>Flow_R1</bpmn:incoming>
+      <bpmn:outgoing>Flow_R2</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- STEP 1: FINANCIAL FIRST (ATOMIC LINKAGE) -->
+    <bpmn:serviceTask id="Activity_RecordFinancial" name="Record Financial Transaction (PURCHASE)"
+                      camunda:asyncBefore="true"
+                      camunda:type="external" camunda:topic="finance-record-purchase">
+      <bpmn:documentation>ATOMIC LINKAGE: Financial transaction MUST succeed before any inventory changes. If payment/expense record fails, inventory movement is NEVER created.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="includeLandedCosts">true</camunda:inputParameter>
+          <camunda:outputParameter name="transactionGroupId">${transactionGroupId}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_R2</bpmn:incoming>
+      <bpmn:outgoing>Flow_FinancialOK</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Error Boundary: If Financial Fails, Abort -->
+    <bpmn:boundaryEvent id="BoundaryEvent_FinancialFail" name="Financial Failed" attachedToRef="Activity_RecordFinancial">
+      <bpmn:outgoing>Flow_Abort</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_FinancialFail" errorRef="Error_FinancialFailed" />
+    </bpmn:boundaryEvent>
+
+    <bpmn:endEvent id="EndEvent_RestockAborted" name="Restock Aborted (No Inventory Change)">
+      <bpmn:documentation>Financial transaction failed. Inventory was NEVER modified. Safe state.</bpmn:documentation>
+      <bpmn:incoming>Flow_Abort</bpmn:incoming>
+      <bpmn:errorEventDefinition id="ErrorDef_Aborted" errorRef="Error_FinancialFailed" />
+    </bpmn:endEvent>
+
+    <!-- STEP 2: UPDATE STOCK (Only after financial success) -->
+    <bpmn:serviceTask id="Activity_UpdateStock" name="Create Inventory Movement (IN)"
+                      camunda:asyncBefore="true"
+                      camunda:type="external" camunda:topic="inventory-create-movement">
+      <bpmn:documentation>Creates inventory_movements record with movement_type=IN. Links to transaction_group_id for audit correlation.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="transactionGroupId">${transactionGroupId}</camunda:inputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_FinancialOK</bpmn:incoming>
+      <bpmn:outgoing>Flow_StockUpdated</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- STEP 3: VERIFICATION LOOP -->
+    <bpmn:serviceTask id="Activity_VerifyConsistency" name="Verify Stock Consistency"
+                      camunda:type="external" camunda:topic="inventory-verify-consistency">
+      <bpmn:documentation>VERIFICATION: Confirms that SUM(inventory_movements) for product matches products.current_stock after trigger execution. Logs discrepancies for reconciliation.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:outputParameter name="currentStock">${verifiedCurrentStock}</camunda:outputParameter>
+          <camunda:outputParameter name="isConsistent">${isConsistent}</camunda:outputParameter>
+        </camunda:inputOutput>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_StockUpdated</bpmn:incoming>
+      <bpmn:outgoing>Flow_R_Check</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- NEGATIVE STOCK CHECK (After verification) -->
+    <bpmn:exclusiveGateway id="Gateway_NegativeStock" name="Current Stock &lt; 0?">
+      <bpmn:incoming>Flow_R_Check</bpmn:incoming>
+      <bpmn:outgoing>Flow_NegYes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_NegNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Activity_ResetNegativeStock" name="Reset Negative Stock to Zero"
+                      camunda:asyncBefore="true"
+                      camunda:type="external" camunda:topic="inventory-negative-reset">
+      <bpmn:documentation>The Forgiveness Law: If current_stock &lt; 0, the old cost data is considered irrelevant. The new WAC will equal the incoming unit cost.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NegYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_AfterReset</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_CalculateWAC" name="Calculate WAC (with Landed Costs)"
+                      camunda:asyncBefore="true"
+                      camunda:type="external" camunda:topic="inventory-calculate-wac">
+      <bpmn:documentation>Formula: ((Old_Stock * Old_Cost) + (New_Stock * New_Cost) + Landed_Costs) / Total_Stock</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_NegNo</bpmn:incoming>
+      <bpmn:incoming>Flow_AfterReset</bpmn:incoming>
+      <bpmn:outgoing>Flow_R4</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_QuarantineProposal" name="Insert PENDING Price Proposal"
+                      camunda:type="external" camunda:topic="pricing-quarantine-proposal">
+      <bpmn:incoming>Flow_R4</bpmn:incoming>
+      <bpmn:outgoing>Flow_R5</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="Activity_ReviewProposals" name="Review Proposals Interface">
+      <bpmn:incoming>Flow_R5</bpmn:incoming>
+      <bpmn:outgoing>Flow_R6</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_ApproveReject" name="Approve?">
+      <bpmn:incoming>Flow_R6</bpmn:incoming>
+      <bpmn:outgoing>Flow_Approve</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Reject</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Activity_ApplyPrices" name="Apply New Prices to Products &#38; History"
+                      camunda:type="external" camunda:topic="pricing-apply-prices">
+      <bpmn:incoming>Flow_Approve</bpmn:incoming>
+      <bpmn:outgoing>Flow_R7</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_RejectProposal" name="Mark Status as REJECTED"
+                      camunda:type="external" camunda:topic="pricing-reject-proposal">
+      <bpmn:incoming>Flow_Reject</bpmn:incoming>
+      <bpmn:outgoing>Flow_AfterReject</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_FlagBatchForReview" name="Flag Inventory Batch: Needs Price Review"
+                      camunda:type="external" camunda:topic="inventory-flag-price-review">
+      <bpmn:documentation>PRICING INTEGRITY: When a price proposal is rejected, the inventory batch is flagged to prevent selling at $0 or outdated cost.</bpmn:documentation>
+      <bpmn:incoming>Flow_AfterReject</bpmn:incoming>
+      <bpmn:outgoing>Flow_R8</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_RestockComplete" name="Process Finished">
+      <bpmn:incoming>Flow_R7</bpmn:incoming>
+      <bpmn:incoming>Flow_R8</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="Flow_R1" sourceRef="StartEvent_Restock" targetRef="Activity_EnterRestock" />
+    <bpmn:sequenceFlow id="Flow_R2" sourceRef="Activity_EnterRestock" targetRef="Activity_RecordFinancial" />
+    <bpmn:sequenceFlow id="Flow_Abort" sourceRef="BoundaryEvent_FinancialFail" targetRef="EndEvent_RestockAborted" />
+    <bpmn:sequenceFlow id="Flow_FinancialOK" sourceRef="Activity_RecordFinancial" targetRef="Activity_UpdateStock" />
+    <bpmn:sequenceFlow id="Flow_StockUpdated" sourceRef="Activity_UpdateStock" targetRef="Activity_VerifyConsistency" />
+    <bpmn:sequenceFlow id="Flow_R_Check" sourceRef="Activity_VerifyConsistency" targetRef="Gateway_NegativeStock" />
+    <bpmn:sequenceFlow id="Flow_NegYes" name="Yes (Negative)" sourceRef="Gateway_NegativeStock" targetRef="Activity_ResetNegativeStock">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${currentStock &lt; 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_NegNo" name="No (Positive)" sourceRef="Gateway_NegativeStock" targetRef="Activity_CalculateWAC">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${currentStock &gt;= 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_AfterReset" sourceRef="Activity_ResetNegativeStock" targetRef="Activity_CalculateWAC" />
+    <bpmn:sequenceFlow id="Flow_R4" sourceRef="Activity_CalculateWAC" targetRef="Activity_QuarantineProposal" />
+    <bpmn:sequenceFlow id="Flow_R5" sourceRef="Activity_QuarantineProposal" targetRef="Activity_ReviewProposals" />
+    <bpmn:sequenceFlow id="Flow_R6" sourceRef="Activity_ReviewProposals" targetRef="Gateway_ApproveReject" />
+    <bpmn:sequenceFlow id="Flow_Approve" name="Yes" sourceRef="Gateway_ApproveReject" targetRef="Activity_ApplyPrices">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Reject" name="No" sourceRef="Gateway_ApproveReject" targetRef="Activity_RejectProposal">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_AfterReject" sourceRef="Activity_RejectProposal" targetRef="Activity_FlagBatchForReview" />
+    <bpmn:sequenceFlow id="Flow_R7" sourceRef="Activity_ApplyPrices" targetRef="EndEvent_RestockComplete" />
+    <bpmn:sequenceFlow id="Flow_R8" sourceRef="Activity_FlagBatchForReview" targetRef="EndEvent_RestockComplete" />
+
+  </bpmn:process>
+
+  <bpmn:error id="Error_FinancialFailed" name="Financial Transaction Failed" errorCode="ERR_FINANCIAL_001" />
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Restock">
+    <bpmndi:BPMNPlane id="BPMNPlane_Restock" bpmnElement="Collaboration_Restock">
+      <bpmndi:BPMNShape id="Participant_Restock_di" bpmnElement="Participant_Restock" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="1800" height="560" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_Admin_di" bpmnElement="Lane_Admin" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="1770" height="200" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_System_di" bpmnElement="Lane_System" isHorizontal="true">
+        <dc:Bounds x="190" y="280" width="1770" height="360" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="StartEvent_Restock_di" bpmnElement="StartEvent_Restock">
+        <dc:Bounds x="212" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="190" y="205" width="81" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_EnterRestock_di" bpmnElement="Activity_EnterRestock">
+        <dc:Bounds x="300" y="142" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_RecordFinancial_di" bpmnElement="Activity_RecordFinancial">
+        <dc:Bounds x="460" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_FinancialFail_di" bpmnElement="BoundaryEvent_FinancialFail">
+        <dc:Bounds x="492" y="402" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="528" y="415" width="77" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_RestockAborted_di" bpmnElement="EndEvent_RestockAborted">
+        <dc:Bounds x="492" y="562" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="466" y="605" width="89" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_UpdateStock_di" bpmnElement="Activity_UpdateStock">
+        <dc:Bounds x="620" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_VerifyConsistency_di" bpmnElement="Activity_VerifyConsistency">
+        <dc:Bounds x="780" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_NegativeStock_di" bpmnElement="Gateway_NegativeStock" isMarkerVisible="true">
+        <dc:Bounds x="935" y="355" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="918" y="331" width="84" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ResetNegativeStock_di" bpmnElement="Activity_ResetNegativeStock">
+        <dc:Bounds x="1010" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_CalculateWAC_di" bpmnElement="Activity_CalculateWAC">
+        <dc:Bounds x="1150" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_QuarantineProposal_di" bpmnElement="Activity_QuarantineProposal">
+        <dc:Bounds x="1310" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ReviewProposals_di" bpmnElement="Activity_ReviewProposals">
+        <dc:Bounds x="1430" y="142" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ApproveReject_di" bpmnElement="Gateway_ApproveReject" isMarkerVisible="true">
+        <dc:Bounds x="1585" y="157" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1586" y="133" width="48" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ApplyPrices_di" bpmnElement="Activity_ApplyPrices">
+        <dc:Bounds x="1690" y="340" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_RejectProposal_di" bpmnElement="Activity_RejectProposal">
+        <dc:Bounds x="1690" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_FlagBatchForReview_di" bpmnElement="Activity_FlagBatchForReview">
+        <dc:Bounds x="1840" y="460" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_RestockComplete_di" bpmnElement="EndEvent_RestockComplete">
+        <dc:Bounds x="1872" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1848" y="205" width="85" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_R1_di" bpmnElement="Flow_R1">
+        <di:waypoint x="248" y="180" />
+        <di:waypoint x="300" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R2_di" bpmnElement="Flow_R2">
+        <di:waypoint x="400" y="182" />
+        <di:waypoint x="430" y="182" />
+        <di:waypoint x="430" y="380" />
+        <di:waypoint x="460" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Abort_di" bpmnElement="Flow_Abort">
+        <di:waypoint x="510" y="438" />
+        <di:waypoint x="510" y="562" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_FinancialOK_di" bpmnElement="Flow_FinancialOK">
+        <di:waypoint x="560" y="380" />
+        <di:waypoint x="620" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_StockUpdated_di" bpmnElement="Flow_StockUpdated">
+        <di:waypoint x="720" y="380" />
+        <di:waypoint x="780" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R_Check_di" bpmnElement="Flow_R_Check">
+        <di:waypoint x="880" y="380" />
+        <di:waypoint x="935" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NegYes_di" bpmnElement="Flow_NegYes">
+        <di:waypoint x="960" y="405" />
+        <di:waypoint x="960" y="500" />
+        <di:waypoint x="1010" y="500" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="965" y="450" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_NegNo_di" bpmnElement="Flow_NegNo">
+        <di:waypoint x="985" y="380" />
+        <di:waypoint x="1150" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1030" y="362" width="64" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AfterReset_di" bpmnElement="Flow_AfterReset">
+        <di:waypoint x="1110" y="500" />
+        <di:waypoint x="1130" y="500" />
+        <di:waypoint x="1130" y="380" />
+        <di:waypoint x="1150" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R4_di" bpmnElement="Flow_R4">
+        <di:waypoint x="1250" y="380" />
+        <di:waypoint x="1310" y="380" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R5_di" bpmnElement="Flow_R5">
+        <di:waypoint x="1360" y="340" />
+        <di:waypoint x="1360" y="182" />
+        <di:waypoint x="1430" y="182" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R6_di" bpmnElement="Flow_R6">
+        <di:waypoint x="1530" y="182" />
+        <di:waypoint x="1585" y="182" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Approve_di" bpmnElement="Flow_Approve">
+        <di:waypoint x="1610" y="207" />
+        <di:waypoint x="1610" y="380" />
+        <di:waypoint x="1690" y="380" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1616" y="291" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Reject_di" bpmnElement="Flow_Reject">
+        <di:waypoint x="1635" y="182" />
+        <di:waypoint x="1662" y="182" />
+        <di:waypoint x="1662" y="500" />
+        <di:waypoint x="1690" y="500" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1670" y="338" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_AfterReject_di" bpmnElement="Flow_AfterReject">
+        <di:waypoint x="1790" y="500" />
+        <di:waypoint x="1840" y="500" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R7_di" bpmnElement="Flow_R7">
+        <di:waypoint x="1790" y="380" />
+        <di:waypoint x="1831" y="380" />
+        <di:waypoint x="1831" y="180" />
+        <di:waypoint x="1872" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_R8_di" bpmnElement="Flow_R8">
+        <di:waypoint x="1890" y="460" />
+        <di:waypoint x="1890" y="198" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

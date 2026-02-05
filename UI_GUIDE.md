@@ -2,6 +2,9 @@
 
 This document describes the visual design and user experience of the ERP system.
 
+> [!IMPORTANT]
+> **Language Mandate:** ALL UI labels, buttons, placeholders, and error messages MUST be in **Spanish (es-MX)**. No English text should appear in the user interface.
+
 ## 📱 Mobile-First Design Philosophy
 
 **Primary Device:** Smartphone (320px - 428px width)  
@@ -10,6 +13,280 @@ This document describes the visual design and user experience of the ERP system.
 **Loading States:** Spinners with descriptive text
 
 ---
+
+## 🎨 Tailwind Configuration (Mobile-Optimized)
+
+### tailwind.config.js
+
+```javascript
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  theme: {
+    extend: {
+      // Enforce minimum touch targets
+      minHeight: {
+        'touch': '44px',   // iOS minimum
+        'touch-lg': '48px' // Recommended
+      },
+      minWidth: {
+        'touch': '44px',
+        'touch-lg': '48px'
+      },
+      // Spacing for thumb-zone
+      spacing: {
+        'safe-bottom': 'env(safe-area-inset-bottom)',
+        'thumb-zone': '40vh'
+      },
+      // Font sizes (minimum 16px for inputs to prevent iOS zoom)
+      fontSize: {
+        'input': ['16px', { lineHeight: '1.5' }]
+      }
+    }
+  },
+  plugins: []
+}
+```
+
+### Global CSS Utilities
+
+```css
+/* styles/globals.css */
+
+/* ===== SPANISH LABELS ===== */
+/* Ensure all prompts use Spanish */
+:root {
+  --label-loading: "Cargando...";
+  --label-error: "Error";
+  --label-success: "Éxito";
+  --label-confirm: "Confirmar";
+  --label-cancel: "Cancelar";
+  --label-save: "Guardar";
+  --label-delete: "Eliminar";
+  --label-search: "Buscar...";
+  --label-required: "Campo obligatorio";
+}
+
+/* ===== MOBILE-OPTIMIZED TOUCH TARGETS ===== */
+.btn,
+button,
+[role="button"],
+.touch-target {
+  @apply min-h-touch min-w-touch;
+  @apply px-4 py-3;
+  @apply text-input; /* 16px minimum */
+}
+
+.btn-primary {
+  @apply min-h-touch-lg;
+  @apply bg-blue-600 text-white font-semibold;
+  @apply rounded-lg shadow-sm;
+  @apply active:scale-[0.98] transition-transform;
+}
+
+/* Prevent iOS zoom on input focus */
+input,
+select,
+textarea {
+  @apply text-input; /* 16px */
+}
+
+/* Input with decimal keypad (for prices/costs) */
+.input-decimal {
+  @apply text-input;
+  inputmode: decimal;
+}
+
+/* Input with numeric keypad (for quantities) */
+.input-numeric {
+  @apply text-input;
+  inputmode: numeric;
+}
+```
+
+---
+
+## 🏷️ Spanish Label Standards
+
+All UI text MUST use these Spanish translations:
+
+### Common Actions
+
+| English | Spanish | Context |
+|---------|---------|---------|
+| Save | Guardar | Primary save action |
+| Cancel | Cancelar | Cancel/dismiss action |
+| Delete | Eliminar | Delete action |
+| Confirm | Confirmar | Confirmation dialogs |
+| Edit | Editar | Edit action |
+| Add | Agregar | Add new item |
+| Search | Buscar | Search inputs |
+| Filter | Filtrar | Filter controls |
+| Back | Volver | Navigation back |
+
+### Form Labels
+
+| English | Spanish | Field Type |
+|---------|---------|------------|
+| Name | Nombre | Text input |
+| Phone | Teléfono | Tel input |
+| Email | Correo electrónico | Email input |
+| Price | Precio | Currency input |
+| Cost | Costo | Currency input |
+| Quantity | Cantidad | Number input |
+| Description | Descripción | Textarea |
+| Notes | Notas | Textarea |
+| Date | Fecha | Date picker |
+| Account | Cuenta | Select |
+| Product | Producto | Select/search |
+| Customer | Cliente | Select/search |
+| Supplier | Proveedor | Select/search |
+
+### Validation Messages
+
+| English | Spanish |
+|---------|---------|
+| Required field | Campo obligatorio |
+| Invalid format | Formato inválido |
+| Must be a number | Debe ser un número |
+| Minimum X characters | Mínimo X caracteres |
+| Maximum X characters | Máximo X caracteres |
+| Must be positive | Debe ser mayor a cero |
+
+### Status Messages
+
+| English | Spanish |
+|---------|---------|
+| Loading... | Cargando... |
+| Saving... | Guardando... |
+| Saved successfully | Guardado exitosamente |
+| Error saving | Error al guardar |
+| No results found | No se encontraron resultados |
+| Connection error | Error de conexión |
+
+---
+
+
+### 👍 Thumb-Zone Accessibility
+
+All primary actions MUST be placed within the **thumb-friendly zone** (bottom 40% of screen):
+
+```
+┌─────────────────────────────────────┐
+│                                     │
+│  ┌─────────────────────────────┐   │ ← STRETCH ZONE (Headers, search)
+│  │  Header / Navigation        │   │
+│  └─────────────────────────────┘   │
+│                                     │
+│  ┌─────────────────────────────┐   │
+│  │                             │   │ ← NATURAL ZONE (Content, lists)
+│  │  Scrollable Content Area    │   │
+│  │                             │   │
+│  └─────────────────────────────┘   │
+│                                     │
+├─────────────────────────────────────┤
+│  ┌─────────────────────────────┐   │ ← THUMB ZONE (Primary actions)
+│  │  💰 TOTAL: $155.00          │   │
+│  └─────────────────────────────┘   │
+│  ┌─────────────────────────────┐   │
+│  │     REGISTRAR VENTA         │   │ ← Primary CTA (min 48px height)
+│  └─────────────────────────────┘   │
+└─────────────────────────────────────┘
+│  🏠  │  📦  │  💰  │  ⚙️  │        │ ← Bottom Navigation (sticky)
+└─────────────────────────────────────┘
+```
+
+### 📲 Bottom-Aligned Action Sheets
+
+For sales and critical actions, use **bottom sheets** instead of modals:
+
+```
+┌─────────────────────────────────────┐
+│  (Dimmed background)               │
+│                                     │
+├─────────────────────────────────────┤
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   │ ← Drag handle
+│                                     │
+│  Confirmar Venta                    │
+│                                     │
+│  Cliente: Juan Pérez               │
+│  Total: $155.00                    │
+│                                     │
+│  ┌──────────┐  ┌──────────────┐    │
+│  │ Cancelar │  │  Confirmar   │    │ ← Full-width buttons
+│  └──────────┘  └──────────────┘    │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### ⌨️ Input Mode Standards (MANDATORY)
+
+All numeric inputs MUST use appropriate `inputmode` attributes:
+
+```html
+<!-- ✅ CORRECT: Shows numeric keypad with decimal -->
+<input 
+  type="text" 
+  inputmode="decimal" 
+  placeholder="0.00"
+  pattern="[0-9]*\.?[0-9]*"
+/>
+
+<!-- ✅ CORRECT: Quantity (no decimal needed) -->
+<input 
+  type="text" 
+  inputmode="numeric" 
+  placeholder="1"
+  pattern="[0-9]*"
+/>
+
+<!-- ❌ WRONG: Shows full keyboard on mobile -->
+<input type="text" placeholder="Enter price" />
+```
+
+| Input Type | inputmode | pattern | Example |
+|------------|-----------|---------|---------|
+| Price/Cost | `decimal` | `[0-9]*\.?[0-9]*` | Precio, Costo |
+| Quantity | `numeric` | `[0-9]*` | Cantidad |
+| Phone | `tel` | `[0-9+\-]*` | Teléfono |
+| SKU | `text` | — | Código |
+
+### 📐 Minimum Touch Target Sizes
+
+| Element | Minimum Size | Recommended |
+|---------|--------------|-------------|
+| Buttons | 44x44px | 48x48px |
+| Icon buttons | 44x44px | 48x48px |
+| List items | Full width × 48px | Full width × 56px |
+| Quantity controls (+/-) | 44x44px | 48x48px |
+| Close/X buttons | 44x44px | 48x48px |
+
+```css
+/* Enforce minimum touch targets */
+button, 
+[role="button"],
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 12px 16px;
+}
+
+.btn-primary {
+  min-height: 48px;
+  font-size: 16px; /* Prevents iOS zoom on focus */
+}
+```
+
+### 🚫 One-Handed Operation Rules
+
+1. **Never place primary actions at the top** of the screen
+2. **Swipe gestures** for common actions (swipe to delete, swipe to archive)
+3. **Bottom sheets > Modals** for confirmations
+4. **Reachable dropdowns**: Dropdown content opens upward if near bottom
+5. **Font size minimum**: 16px for inputs (prevents iOS zoom)
+
+---
+
 
 ## 🏠 Dashboard (Home Page)
 

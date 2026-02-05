@@ -1,6 +1,18 @@
 -- Migration: Fix Transfer RPC Sign
 -- Description: Ensures transfer_funds inserts a NEGATIVE amount for the source account (Outflow).
 -- This fixes the issue where transfers were appearing as positive inputs in the source account.
+--
+-- ============================================
+-- BPMN Reference: Financial_Management_Process.bpmn
+-- Flow: Transfer Flow (Full Saga Pattern)
+-- ============================================
+-- Tasks Implemented:
+--   Activity_TransferSourceDebit: Debit Source Account (negative amount)
+--   Activity_TransferDestCredit: Credit Destination Account (via trigger)
+--
+-- Compensation: PostgreSQL ACID ensures atomicity - both succeed or both fail.
+-- Manual Intervention: N/A (database-level transactional guarantees)
+-- ============================================
 
 CREATE OR REPLACE FUNCTION transfer_funds(
   p_source_account_id UUID,

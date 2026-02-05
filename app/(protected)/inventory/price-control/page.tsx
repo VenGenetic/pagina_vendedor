@@ -146,8 +146,14 @@ export default function PriceControlPage() {
                                     <Badge variant="outline" className="mb-1 border-yellow-500 text-yellow-600 bg-yellow-50">
                                         Cambio de Costo Detectado
                                     </Badge>
-                                    <CardTitle className="text-base line-clamp-2">
+                                    <CardTitle className="text-base line-clamp-2 flex items-center gap-2">
                                         {proposal.products?.name || 'Producto Desconocido'}
+                                        {proposal.products?.needs_price_review && (
+                                            <Badge variant="destructive" className="h-5 px-1.5 animate-pulse">
+                                                <AlertCircle className="h-3 w-3 mr-1" />
+                                                Revisión Necesaria
+                                            </Badge>
+                                        )}
                                     </CardTitle>
                                     <CardDescription className="font-mono text-xs">
                                         SKU: {proposal.products?.sku}

@@ -317,6 +317,15 @@ export async function deleteCommission(transactionId: string) {
 
 /**
  * Revert a Sale
+ * 
+ * BPMN Reference: Financial_Management_Process.bpmn
+ * Flow: Reversal Flow (With Correlation)
+ * 
+ * Implements:
+ * - Activity_ReverseTransactionRPC: Validate & create mirror group
+ * - Activity_RestoreInventory: Restore stock via IN movements
+ * - Activity_UpdateSaleHeader: Set status to REVERSED
+ * 
  * Finds all transactions linked to the sale and reverses them.
  * The RPC handles inventory and sale status.
  */
@@ -408,7 +417,17 @@ export async function deleteExpense(transactionId: string) {
 }
 
 /**
- * Crea una transferencia entre dos cuentas
+ * Creates a transfer between two accounts
+ * 
+ * BPMN Reference: Financial_Management_Process.bpmn
+ * Flow: Transfer Flow (Full Saga Pattern)
+ * 
+ * Implements:
+ * - Activity_TransferSourceDebit: Debit Source Account
+ * - Activity_TransferDestCredit: Credit Destination Account
+ * 
+ * Compensation: Handled at database transaction level (atomic)
+ * Manual Intervention: N/A (PostgreSQL ensures consistency)
  */
 export async function crearTransferencia(input: EntradaCrearTransferencia) {
   try {
