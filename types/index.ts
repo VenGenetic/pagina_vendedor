@@ -63,6 +63,7 @@ export interface EntradaCrearVenta {
   costo_envio?: number; // Costo que paga el negocio por el envío
   id_cuenta_envio?: string; // Cuenta desde donde se paga el envío
   notas?: string;
+  source?: 'POS' | 'WHATSAPP' | 'NOTION' | 'API' | 'OTHER'; // BPMN: Lane_Communication
 }
 
 export interface EntradaCrearCompra {

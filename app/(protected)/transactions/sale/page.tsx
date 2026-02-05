@@ -96,6 +96,7 @@ export default function NewSalePage() {
   const [shippingCost, setShippingCost] = useState<number>(0);
   const [discount, setDiscount] = useState(0);
   const [userNote, setUserNote] = useState(''); // New state for optional note
+  const [saleSource, setSaleSource] = useState<'POS' | 'WHATSAPP' | 'NOTION' | 'OTHER'>('POS'); // BPMN: Lane_Communication
 
   // Recommendations State
   const [recentProducts, setRecentProducts] = useState<Producto[]>([]);
@@ -239,7 +240,8 @@ export default function NewSalePage() {
       descuento: discount,
       costo_envio: shippingCost || 0,
       id_cuenta_envio: shippingAccount || undefined,
-      notas: finalNotes || undefined
+      notas: finalNotes || undefined,
+      source: saleSource // BPMN: Lane_Communication - Sale origin tracking
     };
 
     createSale(saleData, {
@@ -440,6 +442,23 @@ export default function NewSalePage() {
                     {acc.name} ({formatCurrency(acc.balance)})
                   </option>
                 ))}
+            </select>
+          </div>
+
+          {/* Sale Source - BPMN: Lane_Communication */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              Origen de Venta
+            </label>
+            <select
+              value={saleSource}
+              onChange={(e) => setSaleSource(e.target.value as 'POS' | 'WHATSAPP' | 'NOTION' | 'OTHER')}
+              className="w-full p-3 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100"
+            >
+              <option value="POS" className="dark:bg-slate-900">📍 POS (Tienda)</option>
+              <option value="WHATSAPP" className="dark:bg-slate-900">💬 WhatsApp</option>
+              <option value="NOTION" className="dark:bg-slate-900">📝 Notion</option>
+              <option value="OTHER" className="dark:bg-slate-900">🔄 Otro</option>
             </select>
           </div>
 
