@@ -15,7 +15,7 @@ async function checkColumn() {
     try {
         const response = await fetch(`${url}/rest/v1/transactions?select=group_id&limit=1`, {
             headers: {
-                'apikey': key,
+                'apikey': key as string,
                 'Authorization': `Bearer ${key}`
             }
         });

@@ -34,11 +34,24 @@ export const inventoryService = {
   },
 
   async createProduct(product: ProductoInsertar) {
-    const { data, error } = await (supabase as any)
-      .from('products')
-      .insert(product)
-      .select()
-      .single();
+    // BPMN: Product_Creation with Equity/Opening Balance
+    const { data, error } = await supabase.rpc('create_product_v2', {
+      p_sku: product.sku,
+      p_name: product.name,
+      p_category: product.category,
+      p_cost_price: product.cost_price,
+      p_selling_price: product.selling_price,
+      p_current_stock: product.current_stock,
+      p_min_stock: product.min_stock_level,
+      p_max_stock: product.max_stock_level,
+      p_target_margin: product.target_margin,
+      // p_user_id handling - we might need to fetch it or pass it. 
+      // For now, let the RPC handle null if allowed or fetch current user here.
+      // But inventoryService is often used in client components where we auth.
+      p_image_url: product.image_url,
+      p_description: product.description,
+      p_brand: product.brand
+    } as any);
 
     if (error) throw error;
     return data;

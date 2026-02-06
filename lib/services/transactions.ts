@@ -64,7 +64,11 @@ export async function processSale(input: CreateSaleInput) {
       quantity: item.cantidad,
       price: item.precio_unitario,
       discount: item.descuento || 0,
-      cost_unit: item.costo_unitario ?? costMap.get(item.id_producto) ?? 0
+      cost_unit: item.costo_unitario ?? costMap.get(item.id_producto) ?? 0,
+      reservation_id: item.reservation_id,
+      is_dropship: item.is_dropship,
+      provider_name: item.provider_name,
+      provider_cost: item.provider_cost
     }));
 
     // Calculate totals locally for the RPC call params
@@ -75,7 +79,7 @@ export async function processSale(input: CreateSaleInput) {
     const total = safeAmount(subtotal + tax - discount);
 
     // Call RPC
-    const { data, error } = await supabase.rpc('process_sale_transaction', {
+    const { data, error } = await supabase.rpc('process_sale_with_reservation', {
       p_sale_number: generateSaleNumber(),
       p_customer_id_number: input.cedula_cliente || null,
       p_customer_name: input.nombre_cliente,
@@ -94,7 +98,8 @@ export async function processSale(input: CreateSaleInput) {
       p_user_id: user.id,
       p_user_name: user.name,
       p_notes: input.notas,
-      p_shipping_account_id: input.id_cuenta_envio
+      p_shipping_account_id: input.id_cuenta_envio,
+      p_source: input.source || 'POS'
     } as any);
 
     if (error) throw error;
@@ -515,6 +520,78 @@ export async function updateSaleDetails(input: UpdateSaleDetailsInput) {
     return { success: true };
   } catch (error: any) {
     console.error('Error updating sale:', error);
+    return { success: false, error: error.message };
+  }
+}
+export async function reserveStock(productId: string, quantity: number, sessionId?: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('reserve_stock', {
+      p_product_id: productId,
+      p_quantity: quantity,
+      p_session_id: sessionId
+    } as any);
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('Error reserving stock:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function releaseReservation(reservationId: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('release_reservation', {
+      p_reservation_id: reservationId
+    } as any);
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('Error releasing reservation:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+export interface CreateProductInput {
+  sku: string;
+  name: string;
+  category?: string;
+  cost_price: number;
+  selling_price: number;
+  current_stock: number;
+  min_stock_level: number;
+  max_stock_level: number;
+  target_margin?: number | null;
+  image_url?: string;
+  description?: string;
+  brand?: string;
+}
+
+export async function createProduct(input: CreateProductInput) {
+  try {
+    const user = await getCurrentUser();
+
+    const { data, error } = await supabase.rpc('create_product_v2', {
+      p_sku: input.sku,
+      p_name: input.name,
+      p_category: input.category || 'General',
+      p_cost_price: input.cost_price,
+      p_selling_price: input.selling_price,
+      p_current_stock: input.current_stock,
+      p_min_stock: input.min_stock_level,
+      p_max_stock: input.max_stock_level,
+      p_target_margin: input.target_margin,
+      p_user_id: user.id || undefined,
+      p_image_url: input.image_url,
+      p_description: input.description,
+      p_brand: input.brand
+    } as any);
+
+    if (error) throw error;
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('Error creating product:', error);
     return { success: false, error: error.message };
   }
 }

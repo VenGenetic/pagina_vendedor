@@ -49,6 +49,7 @@ export interface EntradaArticuloVenta {
   is_dropship?: boolean;
   provider_name?: string | null;
   provider_cost?: number;
+  reservation_id?: string;
 }
 
 export interface EntradaCrearVenta {

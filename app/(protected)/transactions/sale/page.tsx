@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useProducts, useCreateSale, useAccounts, useRecentSales, useDeleteSale, useCustomerByCedula } from '@/hooks/use-queries';
+import { reserveStock, releaseReservation } from '@/lib/services/transactions';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,8 @@ interface SaleItem {
   isDropShip?: boolean;
   providerName?: string;
   providerCost?: number;
+  reservationId?: string;
+  reservationExpiresAt?: Date;
 }
 
 const RECENT_PRODUCTS_KEY = 'recent-products-v1';
@@ -174,6 +177,32 @@ export default function NewSalePage() {
 
   const hasStockIssues = insufficientStockItems.length > 0;
 
+  const handleReserve = async (index: number) => {
+    const item = items[index];
+    if (item.reservationId) {
+      toast.info('Ya tienes una reserva activa para este item');
+      return;
+    }
+
+    const toastId = toast.loading('Reservando stock...');
+    try {
+      const res = await reserveStock(item.productId, item.quantity);
+      if (res.success && res.data) {
+        setItems(items.map((i, idx) => idx === index ? {
+          ...i,
+          reservationId: res.data.reservation_id,
+          reservationExpiresAt: new Date(res.data.expires_at)
+        } : i));
+        toast.success('Stock reservado por 15 minutos', { id: toastId });
+      } else {
+        toast.error('No se pudo reservar: ' + (res.error || 'Error desconocido'), { id: toastId });
+      }
+    } catch (err) {
+      toast.error('Error al reservar', { id: toastId });
+    }
+  };
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -240,8 +269,10 @@ export default function NewSalePage() {
         cantidad: item.quantity,
         precio_unitario: item.price,
         is_dropship: item.isDropShip || false,
+
         provider_name: item.providerName || null,
-        provider_cost: item.providerCost || 0
+        provider_cost: item.providerCost || 0,
+        reservation_id: item.reservationId
       })),
       descuento: discount,
       costo_envio: shippingCost || 0,
@@ -637,60 +668,85 @@ export default function NewSalePage() {
                         </div>
                       </div>
 
-                      {/* Drop Ship Toggle - BPMN: Activity_DetectInsufficientStock */}
-                      {isStockIssue && (
-                        <div className="mt-1 pt-2 border-t border-red-200 dark:border-red-900/30 flex flex-col gap-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-red-700 dark:text-red-400 flex items-center gap-2 uppercase">
-                              <Package className="w-3.5 h-3.5" />
-                              Fulfillment: Drop Ship
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setItems(items.map((i, idx) =>
-                                  idx === index ? { ...i, isDropShip: !i.isDropShip } : i
-                                ));
-                              }}
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${item.isDropShip
-                                ? 'bg-emerald-500 text-white'
-                                : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
-                                }`}
-                            >
-                              {item.isDropShip ? 'Habilitado' : 'Inactivo'}
-                            </button>
+
+                      {/* Reservation & Drop Ship Controls */}
+                      <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        {!item.isDropShip && (
+                          <div className="flex items-center gap-2">
+                            {item.reservationId ? (
+                              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Reservado ({item.reservationExpiresAt && Math.max(0, Math.ceil((item.reservationExpiresAt.getTime() - Date.now()) / 60000))}m)
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleReserve(index)}
+                                className="text-[10px] font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 bg-slate-50 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                              >
+                                <Clock className="w-3 h-3" />
+                                Reservar Stock
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Drop Ship Toggle */}
+                        {isStockIssue && !item.reservationId && (
+                          <div className="flex-1 flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] font-bold text-red-700 dark:text-red-400 flex items-center gap-2 uppercase">
+                                <Package className="w-3.5 h-3.5" />
+                                Fulfillment: Drop Ship
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setItems(items.map((i, idx) =>
+                                    idx === index ? { ...i, isDropShip: !i.isDropShip } : i
+                                  ));
+                                }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${item.isDropShip
+                                  ? 'bg-emerald-500 text-white'
+                                  : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                                  }`}
+                              >
+                                {item.isDropShip ? 'Habilitado' : 'Inactivo'}
+                              </button>
+                            </div>
+
+                            {item.isDropShip && (
+                              <div className="grid grid-cols-2 gap-2 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] text-slate-500 uppercase font-bold">Proveedor</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Nombre..."
+                                    value={item.providerName || ''}
+                                    onChange={(e) => setItems(items.map((i, idx) =>
+                                      idx === index ? { ...i, providerName: e.target.value } : i
+                                    ))}
+                                    className="w-full text-[11px] p-1.5 border rounded bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-7"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] text-slate-500 uppercase font-bold">Costo Prov.</label>
+                                  <input
+                                    type="number"
+                                    placeholder="0.00"
+                                    value={item.providerCost || ''}
+                                    onChange={(e) => setItems(items.map((i, idx) =>
+                                      idx === index ? { ...i, providerCost: parseFloat(e.target.value) } : i
+                                    ))}
+                                    className="w-full text-[11px] p-1.5 border rounded bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-7"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
 
-                          {item.isDropShip && (
-                            <div className="grid grid-cols-2 gap-2 mt-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                              <div className="space-y-1">
-                                <label className="text-[9px] text-slate-500 uppercase font-bold">Proveedor</label>
-                                <input
-                                  type="text"
-                                  placeholder="Nombre..."
-                                  value={item.providerName || ''}
-                                  onChange={(e) => setItems(items.map((i, idx) =>
-                                    idx === index ? { ...i, providerName: e.target.value } : i
-                                  ))}
-                                  className="w-full text-[11px] p-1.5 border rounded bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-7"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[9px] text-slate-500 uppercase font-bold">Costo Prov.</label>
-                                <input
-                                  type="number"
-                                  placeholder="0.00"
-                                  value={item.providerCost || ''}
-                                  onChange={(e) => setItems(items.map((i, idx) =>
-                                    idx === index ? { ...i, providerCost: parseFloat(e.target.value) } : i
-                                  ))}
-                                  className="w-full text-[11px] p-1.5 border rounded bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-7"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   );
                 })}
