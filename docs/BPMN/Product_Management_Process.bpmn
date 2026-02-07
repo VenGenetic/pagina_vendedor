@@ -180,11 +180,13 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${openingQuantity == 0}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_ToUpdate" sourceRef="Activity_StagingReview" targetRef="Activity_UpdatePriceMetadata" />
-    <bpmn:userTask id="Activity_StagingReview" name="Staging Area Review / Revisión en Área de Espera">
-      <bpmn:documentation>Unified Input Wrapper:
-      - Manual Entry (Add single row)
-      - Batch Entry (CSV Upload)
-      - Shared Review Grid (Search, Filter, Edit)</bpmn:documentation>
+    <bpmn:userTask id="Activity_StagingReview" name="Metadata Alignment Staging / Alineación de Metadatos">
+      <bpmn:documentation>Unified Data Alignment Interface:
+      1. Load Current Inventory: Fetches existing products to the staging area.
+      2. Download Template: Generates CSV from current inventory or example.
+      3. Upload CSV: Parses data and matches against DB using SKUs.
+      4. Staging Review: Visual grid highlighting price discrepancies.
+      5. Safe Commit: Uses RPC 'process_metadata_alignment' to update metadata without touching stock.</bpmn:documentation>
       <bpmn:incoming>Flow_PriceYes</bpmn:incoming>
       <bpmn:outgoing>Flow_ToUpdate</bpmn:outgoing>
     </bpmn:userTask>

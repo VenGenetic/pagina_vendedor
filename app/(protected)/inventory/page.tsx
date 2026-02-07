@@ -12,6 +12,7 @@ import { advancedProductSearch } from '@/lib/utils/advanced-search';
 import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ProductDialog } from '@/components/inventory/product-dialog';
+import { ImportProductsDialog } from '@/components/inventory/import-products-dialog';
 import { RestockDialog } from '@/components/inventory/restock-dialog';
 import { inventoryService } from '@/lib/services/inventory';
 import { useQueryClient } from '@tanstack/react-query';
@@ -224,6 +225,9 @@ export default function InventoryPage() {
             >
               <Download className="h-4 w-4" />
             </Button>
+            <div className="hidden sm:block">
+              <ImportProductsDialog />
+            </div>
             <ProductDialog />
           </div>
         </div>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, Loader2, Save, Download } from 'lucide-react';
+import { Upload, Loader2, Save, Download, RefreshCw } from 'lucide-react';
 import { inventoryService } from '@/lib/services/inventory';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/use-queries';
@@ -11,6 +11,7 @@ import Papa from 'papaparse';
 import { ProductoInsertar } from '@/types';
 import { StagingGrid, StagingItem, StagingStatus } from './staging/StagingGrid';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 export function ImportProductsDialog() {
   const [open, setOpen] = useState(false);
@@ -116,6 +117,82 @@ export function ImportProductsDialog() {
     }
   };
 
+  const handleLoadCurrentInventory = async () => {
+    setIsProcessing(true);
+    try {
+      const existingProducts = (await inventoryService.getProducts()) as any[];
+      const items: StagingItem[] = existingProducts.map(p => ({
+        id: Math.random().toString(36).substr(2, 9),
+        sku: p.sku,
+        name: p.name,
+        category: p.category,
+        brand: p.brand || '',
+        cost_price: p.cost_price,
+        selling_price: p.selling_price,
+        db_price: p.selling_price,
+        status: 'MATCH' as StagingStatus
+      }));
+      setStagingData(items);
+      toast.success(`${items.length} productos cargados del inventario.`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al cargar inventario.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const existingProducts = (await inventoryService.getProducts()) as any[];
+      const headers = ['SKU', 'Nombre', 'Categoria', 'Marca', 'Costo', 'Precio Venta'];
+
+      // If inventory is empty, provide a clean template
+      const dataToExport = existingProducts.length > 0 ? existingProducts : [{
+        sku: 'EJEMPLO-001',
+        name: 'Producto de Ejemplo',
+        category: 'General',
+        brand: 'Marca',
+        cost_price: 10.00,
+        selling_price: 15.00
+      }];
+
+      const csvRows = [headers.join(',')];
+
+      dataToExport.forEach((p: any) => {
+        const row = [
+          p.sku || '',
+          p.name || '',
+          p.category || 'General',
+          p.brand || '',
+          p.cost_price || 0,
+          p.selling_price || 0
+        ].map(value => {
+          const stringValue = String(value);
+          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+            return `"${stringValue.replace(/"/g, '""')}"`;
+          }
+          return stringValue;
+        });
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+      const bom = '\uFEFF';
+      const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `plantilla_precios_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al generar plantilla.");
+    }
+  };
+
   const handleCommit = async () => {
     if (stagingData.length === 0) return;
     setIsSaving(true);
@@ -181,17 +258,22 @@ export function ImportProductsDialog() {
           Gestión Masiva / Importar
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+      <DialogContent className="max-w-5xl h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Alineación de Metadatos Comerciales</DialogTitle>
+          <div className="flex justify-between items-center pr-6">
+            <div>
+              <DialogTitle className="text-2xl font-bold">Alineación de Metadatos Comerciales</DialogTitle>
+              <p className="text-sm text-muted-foreground">Actualización masiva de nombres, categorías, marcas y precios.</p>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden flex flex-col gap-4">
+        <div className="flex-1 overflow-hidden flex flex-col gap-4 mt-4">
           {/* Actions Bar */}
-          <div className="flex justify-between items-center bg-muted/20 p-4 rounded-md">
-            <div className="flex gap-2">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 gap-4">
+            <div className="flex flex-wrap gap-2">
               <div className="relative">
-                <Button variant="secondary" className="gap-2" disabled={isProcessing}>
+                <Button variant="default" className="gap-2 bg-indigo-600 hover:bg-indigo-700" disabled={isProcessing}>
                   <Upload className="h-4 w-4" />
                   Importar CSV
                 </Button>
@@ -203,16 +285,35 @@ export function ImportProductsDialog() {
                   disabled={isProcessing}
                 />
               </div>
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1">
-                <Download className="h-3 w-3" /> Plantilla
+
+              <Button
+                variant="outline"
+                className="gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50 dark:border-indigo-900 dark:text-indigo-400 dark:hover:bg-indigo-950"
+                onClick={handleLoadCurrentInventory}
+                disabled={isProcessing}
+              >
+                <RefreshCw className={cn("h-4 w-4", isProcessing && "animate-spin")} />
+                Cargar Inventario Actual
+              </Button>
+
+              <Button
+                variant="ghost"
+                className="gap-2"
+                onClick={handleDownloadTemplate}
+              >
+                <Download className="h-4 w-4" />
+                Descargar Plantilla (CSV)
               </Button>
             </div>
 
-            <div className="text-sm text-muted-foreground">
+            <div className="text-xs font-medium text-slate-500 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-full border shadow-sm">
               {isProcessing ? (
-                <span className="flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Procesando...</span>
+                <span className="flex items-center gap-2 text-indigo-600"><Loader2 className="h-3 w-3 animate-spin" /> Procesando datos...</span>
               ) : (
-                <span>Modo: Unificado (Manual + CSV)</span>
+                <span className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                  Listo para procesar {stagingData.length} filas
+                </span>
               )}
             </div>
           </div>
