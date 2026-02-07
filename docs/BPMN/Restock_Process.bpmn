@@ -194,7 +194,12 @@ Links to transaction_group_id for audit correlation.</bpmn:documentation>
       <bpmn:documentation>Formula: ((Old_Stock * Old_Cost) + (New_Stock * New_Cost) + Landed_Costs) / Total_Stock
 
 INVENTORY COST = List Price (full value for margin calculation)
-NET PAYMENT = List Price - Discount (actual cash out)</bpmn:documentation>
+NET PAYMENT = List Price - Discount (actual cash out)
+
+PRICE PROPOSAL:
+- Generates a PENDING entry in 'price_proposals' table.
+- Does NOT update products.cost_price automatically.
+- Requires Admin approval to commit price changes.</bpmn:documentation>
       <bpmn:extensionElements>
         <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
       </bpmn:extensionElements>

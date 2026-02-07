@@ -74,6 +74,30 @@ CREATE TABLE IF NOT EXISTS admin_alerts (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 1.7 Price Proposals (Restock Process)
+CREATE TABLE IF NOT EXISTS price_proposals (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  inventory_movement_id UUID REFERENCES inventory_movements(id),
+  current_cost DECIMAL(12,2) NOT NULL,
+  current_stock INTEGER NOT NULL,
+  new_quantity INTEGER NOT NULL,
+  new_unit_cost DECIMAL(12,2) NOT NULL,
+  proposed_cost DECIMAL(12,2) NOT NULL,
+  proposed_price DECIMAL(12,2) NOT NULL,
+  status VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED', 'EDITED')),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  applied_at TIMESTAMP WITH TIME ZONE,
+  applied_by UUID REFERENCES auth.users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_price_proposals_status ON price_proposals(status);
+CREATE INDEX IF NOT EXISTS idx_price_proposals_product ON price_proposals(product_id);
+
+-- 1.8 Audit Enhancement
+ALTER TABLE product_cost_history ADD COLUMN IF NOT EXISTS related_proposal_id UUID REFERENCES price_proposals(id);
+
 -- ============================================================================
 -- SECTION 2: HELPER RPCS (Reservations, Demand, Alerts)
 -- ============================================================================
@@ -489,5 +513,51 @@ BEGIN
      END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- 3.6 Price Proposal Management
+CREATE OR REPLACE FUNCTION approve_price_proposal(
+    p_proposal_id UUID,
+    p_user_id UUID,
+    p_final_price DECIMAL DEFAULT NULL
+)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+    v_proposal RECORD;
+    v_final_cost DECIMAL;
+    v_final_selling_price DECIMAL;
+BEGIN
+    SELECT * INTO v_proposal FROM price_proposals WHERE id = p_proposal_id AND status = 'PENDING';
+    IF v_proposal IS NULL THEN RETURN jsonb_build_object('success', false, 'error', 'Proposal not found'); END IF;
+    
+    v_final_cost := v_proposal.proposed_cost;
+    v_final_selling_price := COALESCE(p_final_price, v_proposal.proposed_price);
+
+    PERFORM set_config('app.current_proposal_id', p_proposal_id::TEXT, true);
+
+    UPDATE products SET cost_price = v_final_cost, selling_price = v_final_selling_price, updated_at = NOW() WHERE id = v_proposal.product_id;
+    UPDATE price_proposals SET status = 'APPROVED', applied_at = NOW(), applied_by = p_user_id, proposed_price = v_final_selling_price WHERE id = p_proposal_id;
+
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION reject_price_proposal(p_proposal_id UUID, p_user_id UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+    UPDATE price_proposals SET status = 'REJECTED', applied_at = NOW(), applied_by = p_user_id WHERE id = p_proposal_id AND status = 'PENDING';
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+-- 3.7 Potential Valuation View
+CREATE OR REPLACE VIEW view_potential_inventory_valuation AS
+SELECT 
+  p.id as product_id, p.sku, p.name as product_name, p.current_stock, p.cost_price as current_unit_cost,
+  (p.current_stock * p.cost_price) as current_total_value, pp.id as proposal_id,
+  pp.proposed_cost as potential_unit_cost, pp.proposed_price as potential_selling_price,
+  (p.current_stock * pp.proposed_cost) as potential_total_value,
+  ((p.current_stock * pp.proposed_cost) - (p.current_stock * p.cost_price)) as value_diff,
+  pp.created_at as proposal_date
+FROM products p JOIN price_proposals pp ON p.id = pp.product_id WHERE pp.status = 'PENDING';
 
 COMMIT;
