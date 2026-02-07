@@ -68,15 +68,14 @@ export function ImportProductsDialog() {
               brand: row['MARCA'] || '',
               cost_price: cost,
               selling_price: price,
-              status: 'NEW' // Default, will check below
+              status: 'NEW' as StagingStatus
             };
           }).filter(i => i.name || i.sku); // Filter garbage rows
 
           // 3. Match against DB (Check existing SKUs)
           try {
-            const existingProducts = await inventoryService.getProducts(); // Get minimal list for checking? Or full?
+            const existingProducts = (await inventoryService.getProducts()) as any[];
             // Optim: Ideally we search only relevant SKUs, but for batch of 50-100, getting all active products (light query) is okay usually.
-            // If DB is huge, we'd want a specific RPC. Assuming reasonable size for now.
 
             const finalItems = mappedItems.map(item => {
               if (!item.sku) return { ...item, status: 'NEW' as StagingStatus };
@@ -87,10 +86,10 @@ export function ImportProductsDialog() {
                 return {
                   ...item,
                   db_price: match.selling_price,
-                  status: isDiscrepancy ? 'DISCREPANCY' : 'MATCH' as StagingStatus
+                  status: isDiscrepancy ? 'DISCREPANCY' : ('MATCH' as StagingStatus)
                 };
               }
-              return item;
+              return { ...item, status: 'NEW' as StagingStatus };
             });
 
             // Merge with existing manual rows? Or replace? 

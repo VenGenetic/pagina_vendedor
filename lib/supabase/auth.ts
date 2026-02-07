@@ -37,8 +37,8 @@ export async function registrarAdmin(email: string, contraseña: string, nombreC
     if (errorAuth) {
       // Verificar si el usuario ya existe
       if (errorAuth.message.includes('already registered') || errorAuth.status === 422) {
-         // Intentar recuperación
-         return intentarRecuperacionRegistro(email, contraseña, nombreCompleto);
+        // Intentar recuperación
+        return intentarRecuperacionRegistro(email, contraseña, nombreCompleto);
       }
       return { exito: false, error: errorAuth.message };
     }
@@ -92,16 +92,16 @@ async function intentarRecuperacionRegistro(email: string, contraseña: string, 
     if (data.user) {
       // Se inició sesión correctamente, arreglar perfil si falta
       const { error: errorUpsert } = await supabase
-      .from('admins')
-      .upsert({
-        auth_id: data.user.id,
-        email,
-        full_name: nombreCompleto,
-        is_active: true
-      } as any, { onConflict: 'auth_id' });
+        .from('admins')
+        .upsert({
+          auth_id: data.user.id,
+          email,
+          full_name: nombreCompleto,
+          is_active: true
+        } as any, { onConflict: 'auth_id' });
 
       if (errorUpsert) {
-         return { exito: false, error: 'Sesión exitosa, pero falló la creación del perfil.' };
+        return { exito: false, error: 'Sesión exitosa, pero falló la creación del perfil.' };
       }
 
       return {
@@ -109,7 +109,7 @@ async function intentarRecuperacionRegistro(email: string, contraseña: string, 
         usuario: { id: data.user.id, email, nombre_completo: nombreCompleto }
       };
     }
-    
+
     return { exito: false, error: 'Error desconocido en recuperación.' };
   } catch (e) {
     return { exito: false, error: 'Error de recuperación.' };
@@ -143,43 +143,43 @@ export async function iniciarSesionAdmin(email: string, contraseña: string): Pr
 
     // Si falta el perfil pero está autenticado, intentar recuperar con metadatos
     if (errorPerfil && (errorPerfil.code === 'PGRST116' || !datoAdmin)) {
-       console.log('Perfil no encontrado, intentando crear...');
-       const nombreMeta = data.user.user_metadata?.full_name || email.split('@')[0];
-       
-       const { data: nuevoPerfil, error: errorCrear } = await supabase
-         .from('admins')
-         .insert({
-            auth_id: data.user.id,
-            email: email,
-            full_name: nombreMeta,
-            is_active: true
-         } as any)
-         .select()
-         .single();
-         
-       if (!errorCrear && nuevoPerfil) {
-         datoAdmin = nuevoPerfil;
-         errorPerfil = null;
-       } else {
-         console.error('Error creando perfil:', errorCrear);
-         // Si falla por duplicado, intenta leer de nuevo (posible condición de carrera)
-         if (errorCrear?.code === '23505') {
-            const { data: reintentoAdmin, error: reintentoError } = await supabase
-              .from('admins')
-              .select('*')
-              .eq('auth_id', data.user.id)
-              .single();
-            
-            if (reintentoAdmin && !reintentoError) {
-               datoAdmin = reintentoAdmin;
-               errorPerfil = null;
-            } else {
-               return { exito: false, error: 'Conflicto de perfil. El usuario existe pero no se puede leer.' };
-            }
-         } else {
-            return { exito: false, error: 'Usuario sin perfil de administrador. Contacte soporte. ' + (errorCrear?.message || '') };
-         }
-       }
+      console.log('Perfil no encontrado, intentando crear...');
+      const nombreMeta = data.user.user_metadata?.full_name || email.split('@')[0];
+
+      const { data: nuevoPerfil, error: errorCrear } = await supabase
+        .from('admins')
+        .insert({
+          auth_id: data.user.id,
+          email: email,
+          full_name: nombreMeta,
+          is_active: true
+        } as any)
+        .select()
+        .single();
+
+      if (!errorCrear && nuevoPerfil) {
+        datoAdmin = nuevoPerfil;
+        errorPerfil = null;
+      } else {
+        console.error('Error creando perfil:', errorCrear);
+        // Si falla por duplicado, intenta leer de nuevo (posible condición de carrera)
+        if (errorCrear?.code === '23505') {
+          const { data: reintentoAdmin, error: reintentoError } = await supabase
+            .from('admins')
+            .select('*')
+            .eq('auth_id', data.user.id)
+            .single();
+
+          if (reintentoAdmin && !reintentoError) {
+            datoAdmin = reintentoAdmin;
+            errorPerfil = null;
+          } else {
+            return { exito: false, error: 'Conflicto de perfil. El usuario existe pero no se puede leer.' };
+          }
+        } else {
+          return { exito: false, error: 'Usuario sin perfil de administrador. Contacte soporte. ' + (errorCrear?.message || '') };
+        }
+      }
     }
 
     if (errorPerfil || !datoAdmin) {
