@@ -11,7 +11,6 @@
         <bpmn:flowNodeRef>Activity_ReviewProposals</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Gateway_ApproveReject</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_RestockRejected</bpmn:flowNodeRef>
-        <bpmn:flowNodeRef>Activity_ApplyPrices</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_RestockComplete</bpmn:flowNodeRef>
       </bpmn:lane>
       <bpmn:lane id="Lane_System" name="System (External Workers) / Sistema">
@@ -25,6 +24,7 @@
         <bpmn:flowNodeRef>BoundaryEvent_FinancialFail</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_ResetNegativeStock</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Activity_CalculateWAC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ApplyPrices</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="StartEvent_Restock" name="Restock Needed / Necesita Reabastecimiento">
@@ -71,7 +71,7 @@
       <bpmn:incoming>Flow_R_Demand</bpmn:incoming>
       <bpmn:outgoing>Flow_ToReview</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:userTask id="Activity_ReviewProposals" name="Review Margins &#38; Approve Purchase / Revisar Márgenes y Aprobar" >
+    <bpmn:userTask id="Activity_ReviewProposals" name="Review Margins &#38; Approve Purchase / Revisar Márgenes y Aprobar">
       <bpmn:documentation>REVIEW BEFORE PAYMENT:
 User reviews and approves:
 - Suggested Quantity (from demand study)
@@ -182,11 +182,6 @@ Links to transaction_group_id for audit correlation.</bpmn:documentation>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_AfterReset" sourceRef="Activity_ResetNegativeStock" targetRef="Activity_CalculateWAC" />
     <bpmn:sequenceFlow id="Flow_R4" sourceRef="Activity_CalculateWAC" targetRef="EndEvent_RestockComplete" />
-    <bpmn:serviceTask id="Activity_ApplyPrices" name="Apply Selling Prices (BYPASSED) / Aplicar Precios (OMITIDO)" camunda:type="external" camunda:topic="pricing-apply-prices">
-      <bpmn:documentation>BYPASSED: This task is no longer connected to the flow.
-Manual pricing in Product Management takes precedence.
-Original logic: Selling Price = WAC / (1 - marginTarget%)</bpmn:documentation>
-    </bpmn:serviceTask>
     <bpmn:serviceTask id="Activity_ResetNegativeStock" name="Reset Negative Stock to Zero / Resetear Negativo" camunda:asyncBefore="true" camunda:type="external" camunda:topic="inventory-negative-reset">
       <bpmn:documentation>The Forgiveness Law: If current_stock &lt; 0, reset and use incoming cost as new WAC.</bpmn:documentation>
       <bpmn:extensionElements>
@@ -210,6 +205,11 @@ NET PAYMENT = List Price - Discount (actual cash out)</bpmn:documentation>
     <bpmn:endEvent id="EndEvent_RestockComplete" name="Restock Complete / Reabastecimiento Completo">
       <bpmn:incoming>Flow_R4</bpmn:incoming>
     </bpmn:endEvent>
+    <bpmn:serviceTask id="Activity_ApplyPrices" name="Apply Selling Prices (BYPASSED) / Aplicar Precios (OMITIDO)" camunda:type="external" camunda:topic="pricing-apply-prices">
+      <bpmn:documentation>BYPASSED: This task is no longer connected to the flow.
+Manual pricing in Product Management takes precedence.
+Original logic: Selling Price = WAC / (1 - marginTarget%)</bpmn:documentation>
+    </bpmn:serviceTask>
   </bpmn:process>
   <bpmn:error id="Error_FinancialFailed" name="Financial Transaction Failed" errorCode="ERR_FINANCIAL_001" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_Restock">
@@ -241,13 +241,13 @@ NET PAYMENT = List Price - Discount (actual cash out)</bpmn:documentation>
       <bpmndi:BPMNShape id="Gateway_ApproveReject_di" bpmnElement="Gateway_ApproveReject" isMarkerVisible="true" bioc:stroke="#FDD835" bioc:fill="#FFF9C4">
         <dc:Bounds x="980" y="145" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="766" y="121" width="48" height="14" />
+          <dc:Bounds x="983" y="106" width="54" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_RestockRejected_di" bpmnElement="EndEvent_RestockRejected" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
         <dc:Bounds x="987" y="212" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="750" y="251" width="81" height="27" />
+          <dc:Bounds x="922" y="210" width="56" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_RecordFinancial_di" bpmnElement="Activity_RecordFinancial" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
@@ -256,7 +256,7 @@ NET PAYMENT = List Price - Discount (actual cash out)</bpmn:documentation>
       <bpmndi:BPMNShape id="EndEvent_RestockAborted_di" bpmnElement="EndEvent_RestockAborted" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
         <dc:Bounds x="1132" y="472" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="866" y="515" width="89" height="27" />
+          <dc:Bounds x="1117" y="510" width="85" height="40" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_UpdateStock_di" bpmnElement="Activity_UpdateStock" bioc:stroke="#FB8C00" bioc:fill="#FFE0B2">
@@ -268,11 +268,8 @@ NET PAYMENT = List Price - Discount (actual cash out)</bpmn:documentation>
       <bpmndi:BPMNShape id="Gateway_NegativeStock_di" bpmnElement="Gateway_NegativeStock" isMarkerVisible="true" bioc:stroke="#FDD835" bioc:fill="#FFF9C4">
         <dc:Bounds x="1850" y="315" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1288" y="291" width="84" height="14" />
+          <dc:Bounds x="1839" y="276" width="81" height="27" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_ApplyPrices_di" bpmnElement="Activity_ApplyPrices" bioc:stroke="#757575" bioc:fill="#E0E0E0">
-        <dc:Bounds x="1850" y="110" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_ResetNegativeStock_di" bpmnElement="Activity_ResetNegativeStock" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
         <dc:Bounds x="2050" y="480" width="160" height="80" />
@@ -283,13 +280,16 @@ NET PAYMENT = List Price - Discount (actual cash out)</bpmn:documentation>
       <bpmndi:BPMNShape id="EndEvent_RestockComplete_di" bpmnElement="EndEvent_RestockComplete" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
         <dc:Bounds x="2800" y="132" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1845" y="133" width="90" height="14" />
+          <dc:Bounds x="2845" y="173" width="90" height="53" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ApplyPrices_di" bpmnElement="Activity_ApplyPrices" bioc:stroke="#757575" bioc:fill="#E0E0E0">
+        <dc:Bounds x="2810" y="420" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BoundaryEvent_FinancialFail_di" bpmnElement="BoundaryEvent_FinancialFail">
         <dc:Bounds x="1132" y="362" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="928" y="375" width="77" height="14" />
+          <dc:Bounds x="1047" y="386" width="85" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_R1_di" bpmnElement="Flow_R1">
@@ -318,7 +318,7 @@ NET PAYMENT = List Price - Discount (actual cash out)</bpmn:documentation>
         <di:waypoint x="1065" y="340" />
         <di:waypoint x="1100" y="340" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1030" y="252" width="47" height="14" />
+          <dc:Bounds x="1056" y="153" width="47" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_Rejected_di" bpmnElement="Flow_Rejected">

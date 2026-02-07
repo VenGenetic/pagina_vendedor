@@ -26,6 +26,7 @@
         <bpmn:flowNodeRef>EndEvent_ProductRejected</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>EndEvent_ProductCreated</bpmn:flowNodeRef>
         <bpmn:flowNodeRef>Gateway_HasInitialStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_StagingReview</bpmn:flowNodeRef>
       </bpmn:lane>
     </bpmn:laneSet>
     <bpmn:startEvent id="StartEvent_AddProduct" name="Add Product Requested / Solicitud Agregar Producto">
@@ -128,7 +129,7 @@ Ensures Margin requirements are met.</bpmn:documentation>
     <bpmn:serviceTask id="Activity_UpdatePriceMetadata" name="Update Price Metadata / Actualizar Metadatos Precio" camunda:type="external" camunda:topic="pricing-update-metadata">
       <bpmn:documentation>Updates product row.
 NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
-      <bpmn:incoming>Flow_PriceYes</bpmn:incoming>
+      <bpmn:incoming>Flow_ToUpdate</bpmn:incoming>
       <bpmn:outgoing>Flow_PU4</bpmn:outgoing>
     </bpmn:serviceTask>
     <bpmn:endEvent id="EndEvent_PriceUpdated" name="Price Updated Successfully / Precio Actualizado">
@@ -168,7 +169,7 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
     <bpmn:sequenceFlow id="Flow_PU1" sourceRef="StartEvent_PriceUpdate" targetRef="Activity_RequestPriceUpdate" />
     <bpmn:sequenceFlow id="Flow_PU2" sourceRef="Activity_RequestPriceUpdate" targetRef="Activity_ValidateCostMargin" />
     <bpmn:sequenceFlow id="Flow_PU3" sourceRef="Activity_ValidateCostMargin" targetRef="Gateway_CostMarginCheck" />
-    <bpmn:sequenceFlow id="Flow_PriceYes" name="Yes" sourceRef="Gateway_CostMarginCheck" targetRef="Activity_UpdatePriceMetadata">
+    <bpmn:sequenceFlow id="Flow_PriceYes" name="Yes" sourceRef="Gateway_CostMarginCheck" targetRef="Activity_StagingReview">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${isValid == true}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_PriceNo" name="No" sourceRef="Gateway_CostMarginCheck" targetRef="EndEvent_PriceRejected">
@@ -178,17 +179,26 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
     <bpmn:sequenceFlow id="Flow_StockNo" name="No" sourceRef="Gateway_HasInitialStock" targetRef="EndEvent_ProductCreated">
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${openingQuantity == 0}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToUpdate" sourceRef="Activity_StagingReview" targetRef="Activity_UpdatePriceMetadata" />
+    <bpmn:userTask id="Activity_StagingReview" name="Staging Area Review / Revisión en Área de Espera">
+      <bpmn:documentation>Unified Input Wrapper:
+      - Manual Entry (Add single row)
+      - Batch Entry (CSV Upload)
+      - Shared Review Grid (Search, Filter, Edit)</bpmn:documentation>
+      <bpmn:incoming>Flow_PriceYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToUpdate</bpmn:outgoing>
+    </bpmn:userTask>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_ProductMgmt">
     <bpmndi:BPMNPlane id="BPMNPlane_ProductMgmt" bpmnElement="Collaboration_ProductMgmt">
       <bpmndi:BPMNShape id="Participant_ProductMgmt_di" bpmnElement="Participant_ProductMgmt" isHorizontal="true">
-        <dc:Bounds x="160" y="80" width="2800" height="645" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Lane_SystemServices_di" bpmnElement="Lane_SystemServices" isHorizontal="true">
-        <dc:Bounds x="190" y="425" width="2770" height="300" />
+        <dc:Bounds x="160" y="80" width="3030" height="645" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Lane_AdminUI_di" bpmnElement="Lane_AdminUI" isHorizontal="true">
-        <dc:Bounds x="190" y="80" width="2770" height="345" />
+        <dc:Bounds x="190" y="80" width="3000" height="345" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_SystemServices_di" bpmnElement="Lane_SystemServices" isHorizontal="true">
+        <dc:Bounds x="190" y="425" width="3000" height="300" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="StartEvent_AddProduct_di" bpmnElement="StartEvent_AddProduct" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
         <dc:Bounds x="250" y="245" width="36" height="36" />
@@ -239,12 +249,12 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_UpdatePriceMetadata_di" bpmnElement="Activity_UpdatePriceMetadata" bioc:stroke="#FB8C00" bioc:fill="#FFE0B2">
-        <dc:Bounds x="2400" y="475" width="160" height="80" />
+        <dc:Bounds x="2560" y="475" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_PriceUpdated_di" bpmnElement="EndEvent_PriceUpdated" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
-        <dc:Bounds x="2630" y="497" width="36" height="36" />
+        <dc:Bounds x="2790" y="497" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="2685" y="483" width="70" height="53" />
+          <dc:Bounds x="2845" y="483" width="70" height="53" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="EndEvent_ProductRejected_di" bpmnElement="EndEvent_ProductRejected" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
@@ -270,6 +280,9 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
         <bpmndi:BPMNLabel>
           <dc:Bounds x="2255" y="678" width="90" height="40" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_StagingReview_di" bpmnElement="Activity_StagingReview" bioc:stroke="#1E88E5" bioc:fill="#BBDEFB">
+        <dc:Bounds x="2380" y="230" width="160" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_AP1_di" bpmnElement="Flow_AP1">
         <di:waypoint x="286" y="263" />
@@ -348,9 +361,11 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_PriceYes_di" bpmnElement="Flow_PriceYes">
         <di:waypoint x="2330" y="515" />
-        <di:waypoint x="2400" y="515" />
+        <di:waypoint x="2355" y="515" />
+        <di:waypoint x="2355" y="270" />
+        <di:waypoint x="2380" y="270" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1641" y="360" width="18" height="14" />
+          <dc:Bounds x="1666" y="345" width="18" height="14" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_PriceNo_di" bpmnElement="Flow_PriceNo">
@@ -361,8 +376,8 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_PU4_di" bpmnElement="Flow_PU4">
-        <di:waypoint x="2560" y="515" />
-        <di:waypoint x="2630" y="515" />
+        <di:waypoint x="2720" y="515" />
+        <di:waypoint x="2790" y="515" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Flow_StockNo_di" bpmnElement="Flow_StockNo">
         <di:waypoint x="1365" y="345" />
@@ -372,6 +387,12 @@ NO CONNECTION to Financial or Stock Ledger.</bpmn:documentation>
         <bpmndi:BPMNLabel>
           <dc:Bounds x="1482" y="343" width="15" height="14" />
         </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ToUpdate_di" bpmnElement="Flow_ToUpdate">
+        <di:waypoint x="2540" y="270" />
+        <di:waypoint x="2550" y="270" />
+        <di:waypoint x="2550" y="515" />
+        <di:waypoint x="2560" y="515" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>

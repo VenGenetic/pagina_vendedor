@@ -58,10 +58,21 @@ export const inventoryService = {
   },
 
   async createProducts(products: ProductoInsertar[]) {
+    // Legacy upsert - keeping for reference, but prefer metadata alignment for batch
     const { data, error } = await (supabase as any)
       .from('products')
       .upsert(products, { onConflict: 'sku' })
       .select();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateProductMetadata(products: any[]) {
+    const { data, error } = await (supabase as any).rpc('process_metadata_alignment', {
+      p_products: products,
+      p_user_id: (await supabase.auth.getUser()).data.user?.id
+    });
 
     if (error) throw error;
     return data;
