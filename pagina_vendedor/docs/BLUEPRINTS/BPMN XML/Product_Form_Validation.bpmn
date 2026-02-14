@@ -1,0 +1,527 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" id="Definitions_ProductFormValidation" targetNamespace="http://vengenetic.com/bpmn/product-form" exporter="Camunda Modeler" exporterVersion="5.43.0">
+  <bpmn:collaboration id="Collaboration_ProductFormValidation">
+    <bpmn:participant id="Participant_ProductForm" name="Product Form Validation Process (v2 — Drafts, Calculator, Strict Validation)" processRef="Process_ProductFormValidation" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_ProductFormValidation" name="Product Form Field Validation" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_ProductForm">
+      <bpmn:lane id="Lane_UserInput" name="User Input (React Form + Drafts + Calculator)">
+        <bpmn:flowNodeRef>StartEvent_OpenDialog</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_HasDrafts</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ShowDraftBadge</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_SelectDraft</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_RestoreDraft</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_FillForm</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_AutoSaveDraft</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_PriceCalculator</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ClickSubmit</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_FrontendValidation" name="Frontend Validation (Zod Schema + Strict Visual)">
+        <bpmn:flowNodeRef>Activity_ZodValidateAll</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_AllFieldsValid</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ShowErrors</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ProcessData</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_BackendProcessing" name="Backend Processing (Supabase RPC)">
+        <bpmn:flowNodeRef>Activity_CallCreateProductRPC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_InsertProduct</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Gateway_HasInitialStock</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_RecordOpeningEquity</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_CreateMovement</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_InvalidateQueries</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>EndEvent_ProductCreated</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+
+    <!-- ==================== USER INPUT LANE ==================== -->
+    <bpmn:startEvent id="StartEvent_OpenDialog" name="User Opens Product Dialog">
+      <bpmn:outgoing>Flow_ToCheckDrafts</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Draft System: Check &amp; Restore -->
+    <bpmn:exclusiveGateway id="Gateway_HasDrafts" name="Saved Drafts Exist?">
+      <bpmn:documentation>useLocalDrafts('product_new') checks localStorage for existing drafts. draftCount is reactive.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToCheckDrafts</bpmn:incoming>
+      <bpmn:outgoing>Flow_DraftsYes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_DraftsNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Activity_ShowDraftBadge" name="Show Eraser Button with Red Badge (count)">
+      <bpmn:documentation>DraftManager component renders an Eraser icon (lucide-react) with an absolute-positioned red badge showing draftCount. Badge hidden when count is 0.</bpmn:documentation>
+      <bpmn:incoming>Flow_DraftsYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToSelectDraft</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="Activity_SelectDraft" name="User Clicks Eraser &amp; Selects a Draft">
+      <bpmn:documentation>Clicking the Eraser opens a Shadcn Dialog listing drafts (date + auto-name). User clicks a row to restore, or closes dialog to fill fresh.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToSelectDraft</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToRestoreDraft</bpmn:outgoing>
+      <bpmn:outgoing>Flow_SkipRestore</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Activity_RestoreDraft" name="form.reset(draftData) Clears Errors">
+      <bpmn:documentation>DraftManager.onLoad fires form.reset(loadedData). This restores all field values AND clears any existing validation errors from formState.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToRestoreDraft</bpmn:incoming>
+      <bpmn:outgoing>Flow_RestoredToForm</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Fill Form -->
+    <bpmn:userTask id="Activity_FillForm" name="Fill Product Form (All Fields)">
+      <bpmn:documentation>User fills: SKU*, Name*, Brand, Category, Cost* (via Calculator), Margin (via Calculator), Selling Price* (via Calculator), Stock*, Min*, Max*, Image URL, Description. Red asterisk (*) on required Label components. Fields with errors show border-destructive (red border) and text-destructive error message below.</bpmn:documentation>
+      <bpmn:incoming>Flow_DraftsNo</bpmn:incoming>
+      <bpmn:incoming>Flow_RestoredToForm</bpmn:incoming>
+      <bpmn:incoming>Flow_SkipRestore</bpmn:incoming>
+      <bpmn:incoming>Flow_BackToForm</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAutoSave</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToSubmit</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Auto-Save Draft (parallel) -->
+    <bpmn:serviceTask id="Activity_AutoSaveDraft" name="Auto-Save Draft (Debounced 1s)">
+      <bpmn:documentation>useEffect watches form.watch() values. On every change, saveDraft('product_new', formValues) is called. The hook debounces writes to localStorage by 1000ms. No validation — partial/broken data is saved. Badge count updates immediately.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToAutoSave</bpmn:incoming>
+    </bpmn:serviceTask>
+
+    <!-- Price Calculator -->
+    <bpmn:serviceTask id="Activity_PriceCalculator" name="PriceCalculator: Bi-directional Sync">
+      <bpmn:documentation>PriceCalculator component replaces manual cost/margin/price inputs. Pass form.watch('cost_price') as cost prop. On onChange: form.setValue('selling_price', price, { shouldValidate: true }) and form.setValue('target_margin', margin). Hidden inputs keep Zod schema synced. Formula forward: price = cost / (1 - margin/100). Formula reverse: margin = (price - cost) / price * 100.</bpmn:documentation>
+      <bpmn:incoming>Flow_CalcFromForm</bpmn:incoming>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="Activity_ClickSubmit" name="Click Submit Button">
+      <bpmn:documentation>handleSubmit(onSubmitForm) triggers Zod validation via zodResolver. Only validates on submit — NOT during draft save.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToSubmit</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToValidation</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- ==================== FRONTEND VALIDATION LANE ==================== -->
+    <bpmn:serviceTask id="Activity_ZodValidateAll" name="Zod: Validate All Fields At Once">
+      <bpmn:documentation>zodResolver(productSchema) validates the entire form object simultaneously:
+- sku: string, min 1 char (REQUIRED — red *)
+- name: string, min 1 char (REQUIRED — red *)
+- brand: string, optional
+- category: string, optional
+- cost_price: number, min 0 (REQUIRED — red *)
+- selling_price: number, min 0 (REQUIRED — red *)
+- target_margin: number, 0-99, optional/nullable
+- current_stock: integer, min 0 (REQUIRED — red *)
+- min_stock_level: integer, min 0 (REQUIRED — red *)
+- max_stock_level: integer, min 0 (REQUIRED — red *)
+- description: string, optional
+- image_url: valid URL or empty, optional</bpmn:documentation>
+      <bpmn:incoming>Flow_ToValidation</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToGateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_AllFieldsValid" name="All Fields Valid?">
+      <bpmn:incoming>Flow_ToGateway</bpmn:incoming>
+      <bpmn:outgoing>Flow_Valid</bpmn:outgoing>
+      <bpmn:outgoing>Flow_Invalid</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Activity_ShowErrors" name="Show Strict Visual Errors">
+      <bpmn:documentation>Invalid fields receive: (1) border-destructive class on Input (red border), (2) text-destructive error message below field. Form is NOT submitted. User corrects and resubmits. Required labels show red asterisk (*) via Label required prop.</bpmn:documentation>
+      <bpmn:incoming>Flow_Invalid</bpmn:incoming>
+      <bpmn:outgoing>Flow_BackToForm</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_ProcessData" name="Process Data (Margin/100, Ceil Price)">
+      <bpmn:documentation>target_margin: 30 becomes 0.30. selling_price: Math.ceil(value). Sets isSubmitting = true.</bpmn:documentation>
+      <bpmn:incoming>Flow_Valid</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToRPC</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ==================== BACKEND PROCESSING LANE ==================== -->
+    <bpmn:serviceTask id="Activity_CallCreateProductRPC" name="Call create_product_v2 RPC">
+      <bpmn:documentation>inventoryService.createProduct() calls supabase.rpc('create_product_v2') with all validated and processed fields.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToRPC</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToInsert</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_InsertProduct" name="Insert Product (current_stock = 0)">
+      <bpmn:documentation>RPC inserts into products table. current_stock starts at 0 (Ledger-First architecture).</bpmn:documentation>
+      <bpmn:incoming>Flow_ToInsert</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToStockCheck</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_HasInitialStock" name="Initial Stock &gt; 0?">
+      <bpmn:incoming>Flow_ToStockCheck</bpmn:incoming>
+      <bpmn:outgoing>Flow_StockYes</bpmn:outgoing>
+      <bpmn:outgoing>Flow_StockNo</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:serviceTask id="Activity_RecordOpeningEquity" name="Record Opening Balance Equity">
+      <bpmn:documentation>Debit: Inventory Asset. Credit: Opening Balance Equity.</bpmn:documentation>
+      <bpmn:incoming>Flow_StockYes</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToMovement</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_CreateMovement" name="Create Opening Movement (IN)">
+      <bpmn:documentation>inventory_movements: type=IN, reason=OPENING_BALANCE. DB trigger updates current_stock.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToMovement</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToInvalidate</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Activity_InvalidateQueries" name="Invalidate Product Queries">
+      <bpmn:documentation>queryClient.invalidateQueries({ queryKey: queryKeys.products }) refreshes the product list. Dialog closes.</bpmn:documentation>
+      <bpmn:incoming>Flow_ToInvalidate</bpmn:incoming>
+      <bpmn:incoming>Flow_StockNo</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToEnd</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent_ProductCreated" name="Product Created Successfully">
+      <bpmn:incoming>Flow_ToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- ==================== SEQUENCE FLOWS ==================== -->
+    <!-- Draft Check -->
+    <bpmn:sequenceFlow id="Flow_ToCheckDrafts" sourceRef="StartEvent_OpenDialog" targetRef="Gateway_HasDrafts" />
+    <bpmn:sequenceFlow id="Flow_DraftsYes" name="Yes (draftCount &gt; 0)" sourceRef="Gateway_HasDrafts" targetRef="Activity_ShowDraftBadge">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${draftCount &gt; 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_DraftsNo" name="No" sourceRef="Gateway_HasDrafts" targetRef="Activity_FillForm">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${draftCount == 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToSelectDraft" sourceRef="Activity_ShowDraftBadge" targetRef="Activity_SelectDraft" />
+    <bpmn:sequenceFlow id="Flow_ToRestoreDraft" name="Selects Draft" sourceRef="Activity_SelectDraft" targetRef="Activity_RestoreDraft" />
+    <bpmn:sequenceFlow id="Flow_SkipRestore" name="Closes Dialog" sourceRef="Activity_SelectDraft" targetRef="Activity_FillForm" />
+    <bpmn:sequenceFlow id="Flow_RestoredToForm" sourceRef="Activity_RestoreDraft" targetRef="Activity_FillForm" />
+
+    <!-- Form Editing -->
+    <bpmn:sequenceFlow id="Flow_ToAutoSave" name="onChange (every edit)" sourceRef="Activity_FillForm" targetRef="Activity_AutoSaveDraft" />
+    <bpmn:sequenceFlow id="Flow_CalcFromForm" name="Pricing fields" sourceRef="Activity_FillForm" targetRef="Activity_PriceCalculator" />
+    <bpmn:sequenceFlow id="Flow_ToSubmit" sourceRef="Activity_FillForm" targetRef="Activity_ClickSubmit" />
+
+    <!-- Validation -->
+    <bpmn:sequenceFlow id="Flow_ToValidation" sourceRef="Activity_ClickSubmit" targetRef="Activity_ZodValidateAll" />
+    <bpmn:sequenceFlow id="Flow_ToGateway" sourceRef="Activity_ZodValidateAll" targetRef="Gateway_AllFieldsValid" />
+    <bpmn:sequenceFlow id="Flow_Valid" name="Yes" sourceRef="Gateway_AllFieldsValid" targetRef="Activity_ProcessData">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${validationErrors.length == 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_Invalid" name="No" sourceRef="Gateway_AllFieldsValid" targetRef="Activity_ShowErrors">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${validationErrors.length &gt; 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_BackToForm" sourceRef="Activity_ShowErrors" targetRef="Activity_FillForm" />
+
+    <!-- Backend -->
+    <bpmn:sequenceFlow id="Flow_ToRPC" sourceRef="Activity_ProcessData" targetRef="Activity_CallCreateProductRPC" />
+    <bpmn:sequenceFlow id="Flow_ToInsert" sourceRef="Activity_CallCreateProductRPC" targetRef="Activity_InsertProduct" />
+    <bpmn:sequenceFlow id="Flow_ToStockCheck" sourceRef="Activity_InsertProduct" targetRef="Gateway_HasInitialStock" />
+    <bpmn:sequenceFlow id="Flow_StockYes" name="Yes" sourceRef="Gateway_HasInitialStock" targetRef="Activity_RecordOpeningEquity">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${current_stock &gt; 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_StockNo" name="No" sourceRef="Gateway_HasInitialStock" targetRef="Activity_InvalidateQueries">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${current_stock == 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_ToMovement" sourceRef="Activity_RecordOpeningEquity" targetRef="Activity_CreateMovement" />
+    <bpmn:sequenceFlow id="Flow_ToInvalidate" sourceRef="Activity_CreateMovement" targetRef="Activity_InvalidateQueries" />
+    <bpmn:sequenceFlow id="Flow_ToEnd" sourceRef="Activity_InvalidateQueries" targetRef="EndEvent_ProductCreated" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Collaboration_ProductFormValidation">
+      <!-- Participant -->
+      <bpmndi:BPMNShape id="Participant_ProductForm_di" bpmnElement="Participant_ProductForm" isHorizontal="true">
+        <dc:Bounds x="160" y="60" width="2100" height="960" />
+      </bpmndi:BPMNShape>
+
+      <!-- Lane: User Input -->
+      <bpmndi:BPMNShape id="Lane_UserInput_di" bpmnElement="Lane_UserInput" isHorizontal="true">
+        <dc:Bounds x="190" y="60" width="2070" height="380" />
+      </bpmndi:BPMNShape>
+
+      <!-- Lane: Frontend Validation -->
+      <bpmndi:BPMNShape id="Lane_FrontendValidation_di" bpmnElement="Lane_FrontendValidation" isHorizontal="true">
+        <dc:Bounds x="190" y="440" width="2070" height="250" />
+      </bpmndi:BPMNShape>
+
+      <!-- Lane: Backend Processing -->
+      <bpmndi:BPMNShape id="Lane_BackendProcessing_di" bpmnElement="Lane_BackendProcessing" isHorizontal="true">
+        <dc:Bounds x="190" y="690" width="2070" height="330" />
+      </bpmndi:BPMNShape>
+
+      <!-- ============ USER INPUT SHAPES ============ -->
+      <bpmndi:BPMNShape id="StartEvent_OpenDialog_di" bpmnElement="StartEvent_OpenDialog" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
+        <dc:Bounds x="262" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="237" y="225" width="87" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Draft Check Gateway -->
+      <bpmndi:BPMNShape id="Gateway_HasDrafts_di" bpmnElement="Gateway_HasDrafts" isMarkerVisible="true" bioc:stroke="#FDD835" bioc:fill="#FFF9C4">
+        <dc:Bounds x="355" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="335" y="232" width="90" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- Draft Badge -->
+      <bpmndi:BPMNShape id="Activity_ShowDraftBadge_di" bpmnElement="Activity_ShowDraftBadge" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
+        <dc:Bounds x="460" y="90" width="200" height="60" />
+      </bpmndi:BPMNShape>
+
+      <!-- Select Draft -->
+      <bpmndi:BPMNShape id="Activity_SelectDraft_di" bpmnElement="Activity_SelectDraft" bioc:stroke="#1E88E5" bioc:fill="#BBDEFB">
+        <dc:Bounds x="720" y="90" width="180" height="60" />
+      </bpmndi:BPMNShape>
+
+      <!-- Restore Draft -->
+      <bpmndi:BPMNShape id="Activity_RestoreDraft_di" bpmnElement="Activity_RestoreDraft" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
+        <dc:Bounds x="960" y="90" width="200" height="60" />
+      </bpmndi:BPMNShape>
+
+      <!-- Fill Form -->
+      <bpmndi:BPMNShape id="Activity_FillForm_di" bpmnElement="Activity_FillForm" bioc:stroke="#1E88E5" bioc:fill="#BBDEFB">
+        <dc:Bounds x="830" y="190" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- Auto-Save Draft -->
+      <bpmndi:BPMNShape id="Activity_AutoSaveDraft_di" bpmnElement="Activity_AutoSaveDraft" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
+        <dc:Bounds x="830" y="330" width="200" height="60" />
+      </bpmndi:BPMNShape>
+
+      <!-- Price Calculator -->
+      <bpmndi:BPMNShape id="Activity_PriceCalculator_di" bpmnElement="Activity_PriceCalculator" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="1100" y="330" width="220" height="60" />
+      </bpmndi:BPMNShape>
+
+      <!-- Click Submit -->
+      <bpmndi:BPMNShape id="Activity_ClickSubmit_di" bpmnElement="Activity_ClickSubmit" bioc:stroke="#1E88E5" bioc:fill="#BBDEFB">
+        <dc:Bounds x="1120" y="190" width="160" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- ============ FRONTEND VALIDATION SHAPES ============ -->
+      <bpmndi:BPMNShape id="Activity_ZodValidateAll_di" bpmnElement="Activity_ZodValidateAll" bioc:stroke="#FB8C00" bioc:fill="#FFE0B2">
+        <dc:Bounds x="600" y="510" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_AllFieldsValid_di" bpmnElement="Gateway_AllFieldsValid" isMarkerVisible="true" bioc:stroke="#FDD835" bioc:fill="#FFF9C4">
+        <dc:Bounds x="875" y="525" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="861" y="582" width="78" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_ShowErrors_di" bpmnElement="Activity_ShowErrors" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
+        <dc:Bounds x="570" y="610" width="200" height="60" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_ProcessData_di" bpmnElement="Activity_ProcessData" bioc:stroke="#FB8C00" bioc:fill="#FFE0B2">
+        <dc:Bounds x="1010" y="510" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <!-- ============ BACKEND PROCESSING SHAPES ============ -->
+      <bpmndi:BPMNShape id="Activity_CallCreateProductRPC_di" bpmnElement="Activity_CallCreateProductRPC" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="310" y="780" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_InsertProduct_di" bpmnElement="Activity_InsertProduct" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="570" y="780" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Gateway_HasInitialStock_di" bpmnElement="Gateway_HasInitialStock" isMarkerVisible="true" bioc:stroke="#FDD835" bioc:fill="#FFF9C4">
+        <dc:Bounds x="835" y="795" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="819" y="852" width="82" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_RecordOpeningEquity_di" bpmnElement="Activity_RecordOpeningEquity" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="950" y="720" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_CreateMovement_di" bpmnElement="Activity_CreateMovement" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="1210" y="720" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="Activity_InvalidateQueries_di" bpmnElement="Activity_InvalidateQueries" bioc:stroke="#FB8C00" bioc:fill="#FFE0B2">
+        <dc:Bounds x="1480" y="780" width="200" height="80" />
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNShape id="EndEvent_ProductCreated_di" bpmnElement="EndEvent_ProductCreated" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
+        <dc:Bounds x="1752" y="802" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1728" y="845" width="84" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <!-- ============ EDGES ============ -->
+      <!-- Start to Draft Check -->
+      <bpmndi:BPMNEdge id="Flow_ToCheckDrafts_di" bpmnElement="Flow_ToCheckDrafts">
+        <di:waypoint x="298" y="200" />
+        <di:waypoint x="355" y="200" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Draft Check: Yes -->
+      <bpmndi:BPMNEdge id="Flow_DraftsYes_di" bpmnElement="Flow_DraftsYes">
+        <di:waypoint x="380" y="175" />
+        <di:waypoint x="380" y="120" />
+        <di:waypoint x="460" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="385" y="103" width="70" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Draft Check: No -->
+      <bpmndi:BPMNEdge id="Flow_DraftsNo_di" bpmnElement="Flow_DraftsNo">
+        <di:waypoint x="405" y="200" />
+        <di:waypoint x="620" y="200" />
+        <di:waypoint x="620" y="230" />
+        <di:waypoint x="830" y="230" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="425" y="183" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Badge to Select -->
+      <bpmndi:BPMNEdge id="Flow_ToSelectDraft_di" bpmnElement="Flow_ToSelectDraft">
+        <di:waypoint x="660" y="120" />
+        <di:waypoint x="720" y="120" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Select to Restore -->
+      <bpmndi:BPMNEdge id="Flow_ToRestoreDraft_di" bpmnElement="Flow_ToRestoreDraft">
+        <di:waypoint x="900" y="120" />
+        <di:waypoint x="960" y="120" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="903" y="103" width="54" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Select: Skip Restore -->
+      <bpmndi:BPMNEdge id="Flow_SkipRestore_di" bpmnElement="Flow_SkipRestore">
+        <di:waypoint x="810" y="150" />
+        <di:waypoint x="810" y="200" />
+        <di:waypoint x="830" y="200" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="815" y="160" width="65" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Restore to Form -->
+      <bpmndi:BPMNEdge id="Flow_RestoredToForm_di" bpmnElement="Flow_RestoredToForm">
+        <di:waypoint x="1060" y="150" />
+        <di:waypoint x="1060" y="170" />
+        <di:waypoint x="960" y="170" />
+        <di:waypoint x="960" y="190" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Form to Auto-Save -->
+      <bpmndi:BPMNEdge id="Flow_ToAutoSave_di" bpmnElement="Flow_ToAutoSave">
+        <di:waypoint x="930" y="270" />
+        <di:waypoint x="930" y="330" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="935" y="293" width="70" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Form to Calculator -->
+      <bpmndi:BPMNEdge id="Flow_CalcFromForm_di" bpmnElement="Flow_CalcFromForm">
+        <di:waypoint x="1030" y="260" />
+        <di:waypoint x="1210" y="260" />
+        <di:waypoint x="1210" y="330" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1090" y="243" width="60" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Form to Submit -->
+      <bpmndi:BPMNEdge id="Flow_ToSubmit_di" bpmnElement="Flow_ToSubmit">
+        <di:waypoint x="1030" y="220" />
+        <di:waypoint x="1120" y="220" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Submit to Validation (cross-lane) -->
+      <bpmndi:BPMNEdge id="Flow_ToValidation_di" bpmnElement="Flow_ToValidation">
+        <di:waypoint x="1200" y="270" />
+        <di:waypoint x="1200" y="450" />
+        <di:waypoint x="700" y="450" />
+        <di:waypoint x="700" y="510" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Validation Lane -->
+      <bpmndi:BPMNEdge id="Flow_ToGateway_di" bpmnElement="Flow_ToGateway">
+        <di:waypoint x="800" y="550" />
+        <di:waypoint x="875" y="550" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Valid_di" bpmnElement="Flow_Valid">
+        <di:waypoint x="925" y="550" />
+        <di:waypoint x="1010" y="550" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="960" y="532" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_Invalid_di" bpmnElement="Flow_Invalid">
+        <di:waypoint x="900" y="575" />
+        <di:waypoint x="900" y="640" />
+        <di:waypoint x="770" y="640" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="904" y="605" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <!-- Back to form (loop) -->
+      <bpmndi:BPMNEdge id="Flow_BackToForm_di" bpmnElement="Flow_BackToForm">
+        <di:waypoint x="570" y="640" />
+        <di:waypoint x="300" y="640" />
+        <di:waypoint x="300" y="230" />
+        <di:waypoint x="830" y="230" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Process to RPC (cross-lane) -->
+      <bpmndi:BPMNEdge id="Flow_ToRPC_di" bpmnElement="Flow_ToRPC">
+        <di:waypoint x="1110" y="590" />
+        <di:waypoint x="1110" y="700" />
+        <di:waypoint x="410" y="700" />
+        <di:waypoint x="410" y="780" />
+      </bpmndi:BPMNEdge>
+
+      <!-- Backend Lane -->
+      <bpmndi:BPMNEdge id="Flow_ToInsert_di" bpmnElement="Flow_ToInsert">
+        <di:waypoint x="510" y="820" />
+        <di:waypoint x="570" y="820" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ToStockCheck_di" bpmnElement="Flow_ToStockCheck">
+        <di:waypoint x="770" y="820" />
+        <di:waypoint x="835" y="820" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_StockYes_di" bpmnElement="Flow_StockYes">
+        <di:waypoint x="860" y="795" />
+        <di:waypoint x="860" y="760" />
+        <di:waypoint x="950" y="760" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="865" y="768" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_StockNo_di" bpmnElement="Flow_StockNo">
+        <di:waypoint x="885" y="820" />
+        <di:waypoint x="1480" y="820" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1175" y="802" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ToMovement_di" bpmnElement="Flow_ToMovement">
+        <di:waypoint x="1150" y="760" />
+        <di:waypoint x="1210" y="760" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ToInvalidate_di" bpmnElement="Flow_ToInvalidate">
+        <di:waypoint x="1410" y="760" />
+        <di:waypoint x="1445" y="760" />
+        <di:waypoint x="1445" y="820" />
+        <di:waypoint x="1480" y="820" />
+      </bpmndi:BPMNEdge>
+
+      <bpmndi:BPMNEdge id="Flow_ToEnd_di" bpmnElement="Flow_ToEnd">
+        <di:waypoint x="1680" y="820" />
+        <di:waypoint x="1752" y="820" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
