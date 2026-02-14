@@ -23,25 +23,28 @@ export function ProductDialog({ product, trigger, onSuccess }: ProductDialogProp
 
   const handleSubmit = async (data: any) => {
     try {
+      console.log('Submitting product data:', data);
+
+      let result;
       if (product) {
-        await inventoryService.updateProduct(product.id, data);
+        result = await inventoryService.updateProduct(product.id, data);
       } else {
-        await inventoryService.createProduct(data);
-      }
-
-      // Invalidate queries to refresh list
-      queryClient.invalidateQueries({ queryKey: queryKeys.products });
-      toast.success(product ? 'Producto actualizado con éxito' : 'Producto agregado con éxito');
-
-      // Call success callback if provided
-      if (data && onSuccess) {
-        onSuccess(data);
+        result = await inventoryService.createProduct(data);
       }
 
       setOpen(false);
+
+      // Invalidate queries without awaiting to keep UI responsive
+      queryClient.invalidateQueries({ queryKey: queryKeys.products });
+
+      toast.success(product ? 'Producto actualizado' : 'Producto creado');
+
+      if (onSuccess) {
+        onSuccess(result);
+      }
     } catch (error) {
       console.error('Error saving product:', error);
-      toast.error('Error al guardar el producto');
+      toast.error('Error al guardar: ' + (error as Error).message);
     }
   };
 
