@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:bioc="http://bpmn.io/schema/bpmn/biocolor/1.0" id="Definitions_Finance" targetNamespace="http://menards.com/bpmn/finance" exporter="Camunda Modeler" exporterVersion="5.43.1">
+  <bpmn:collaboration id="Collaboration_Finance">
+    <bpmn:participant id="Participant_Finance" name="Financial Management (Full Saga Pattern)" processRef="Process_Finance" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Finance" name="Financial Operations with Full Saga" isExecutable="true">
+    <bpmn:laneSet id="LaneSet_Finance">
+      <bpmn:lane id="Lane_AdminFinance" name="Admin / User / Usuario">
+        <bpmn:flowNodeRef>Start_Transfer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_InitiateTransfer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ManualIntervention</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_ManualRequired</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>End_Finance</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Start_Reversal</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_RequestReversal</bpmn:flowNodeRef>
+      </bpmn:lane>
+      <bpmn:lane id="Lane_DatabaseFinance" name="Database (External Workers) / Base de Datos">
+        <bpmn:flowNodeRef>Activity_TransferSourceDebit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_TransferDestCredit</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_CompensateTransfer</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_MirrorGroup</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_ReverseTransactionRPC</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_RestoreInventory</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>Activity_UpdateSaleHeader</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BoundaryEvent_CompensateFail</bpmn:flowNodeRef>
+        <bpmn:flowNodeRef>BoundaryEvent_TransferFail</bpmn:flowNodeRef>
+      </bpmn:lane>
+    </bpmn:laneSet>
+    <bpmn:startEvent id="Start_Transfer" name="Transfer Requested / Transferencia Solicitada">
+      <bpmn:outgoing>Flow_T1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Activity_InitiateTransfer" name="Enter Amount &#38; Accounts / Ingresar Monto y Cuentas">
+      <bpmn:incoming>Flow_T1</bpmn:incoming>
+      <bpmn:outgoing>Flow_T2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:serviceTask id="Activity_TransferSourceDebit" name="Debit Source Account / Debitar Cuenta Origen" camunda:asyncBefore="true" camunda:type="external" camunda:topic="finance-transfer-debit">
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_T2</bpmn:incoming>
+      <bpmn:outgoing>Flow_T3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="BoundaryEvent_TransferFail" name="Credit Failed / Crédito Fallido" attachedToRef="Activity_TransferDestCredit">
+      <bpmn:outgoing>Flow_Compensate</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_TransferFail" errorRef="Error_TransferFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:serviceTask id="Activity_TransferDestCredit" name="Credit Destination Account / Acreditar Cuenta Destino" camunda:asyncBefore="true" camunda:type="external" camunda:topic="finance-transfer-credit">
+      <bpmn:documentation>If this task fails, the Saga Pattern triggers compensation to reverse the money taken from the source account.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_T3</bpmn:incoming>
+      <bpmn:outgoing>Flow_T4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_CompensateTransfer" name="Reverse Source Debit (Compensation) / Reversar Débito (Compensación)" camunda:asyncBefore="true" camunda:type="external" camunda:topic="finance-transfer-compensate">
+      <bpmn:documentation>FULL SAGA: This compensation task has its own error boundary. If it fails after retries, escalate to manual intervention.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_Compensate</bpmn:incoming>
+      <bpmn:outgoing>Flow_EndCompensate</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:boundaryEvent id="BoundaryEvent_CompensateFail" name="Compensation Failed / Fallo Compensación" attachedToRef="Activity_CompensateTransfer">
+      <bpmn:outgoing>Flow_ManualIntervention</bpmn:outgoing>
+      <bpmn:errorEventDefinition id="ErrorDef_CompensateFail" errorRef="Error_CompensationFailed" />
+    </bpmn:boundaryEvent>
+    <bpmn:userTask id="Activity_ManualIntervention" name="ALERT: Manual Intervention Required / ALERTA: Intervención Manual" camunda:assignee="finance-admin">
+      <bpmn:documentation>CRITICAL: Money was debited from source but compensation failed. Finance Admin must manually reconcile the accounts.</bpmn:documentation>
+      <bpmn:incoming>Flow_ManualIntervention</bpmn:incoming>
+      <bpmn:outgoing>Flow_ManualResolved</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="End_ManualRequired" name="Manually Resolved / Resuelto Manualmente">
+      <bpmn:incoming>Flow_ManualResolved</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:endEvent id="End_Finance" name="Operation Complete / Operación Completa">
+      <bpmn:incoming>Flow_T4</bpmn:incoming>
+      <bpmn:incoming>Flow_V6</bpmn:incoming>
+      <bpmn:incoming>Flow_EndCompensate</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_T1" sourceRef="Start_Transfer" targetRef="Activity_InitiateTransfer" />
+    <bpmn:sequenceFlow id="Flow_T2" sourceRef="Activity_InitiateTransfer" targetRef="Activity_TransferSourceDebit" />
+    <bpmn:sequenceFlow id="Flow_T3" sourceRef="Activity_TransferSourceDebit" targetRef="Activity_TransferDestCredit" />
+    <bpmn:sequenceFlow id="Flow_T4" sourceRef="Activity_TransferDestCredit" targetRef="End_Finance" />
+    <bpmn:sequenceFlow id="Flow_Compensate" sourceRef="BoundaryEvent_TransferFail" targetRef="Activity_CompensateTransfer" />
+    <bpmn:sequenceFlow id="Flow_EndCompensate" sourceRef="Activity_CompensateTransfer" targetRef="End_Finance" />
+    <bpmn:sequenceFlow id="Flow_ManualIntervention" sourceRef="BoundaryEvent_CompensateFail" targetRef="Activity_ManualIntervention" />
+    <bpmn:sequenceFlow id="Flow_ManualResolved" sourceRef="Activity_ManualIntervention" targetRef="End_ManualRequired" />
+    <bpmn:startEvent id="Start_Reversal" name="Reversal Requested / Reversión Solicitada">
+      <bpmn:outgoing>Flow_V1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Activity_RequestReversal" name="Select Transaction to Reverse / Seleccionar Transacción">
+      <bpmn:incoming>Flow_V1</bpmn:incoming>
+      <bpmn:outgoing>Flow_V2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:sequenceFlow id="Flow_V1" sourceRef="Start_Reversal" targetRef="Activity_RequestReversal" />
+    <bpmn:sequenceFlow id="Flow_V2" sourceRef="Activity_RequestReversal" targetRef="Activity_ReverseTransactionRPC" />
+    <bpmn:sequenceFlow id="Flow_V3" sourceRef="Activity_ReverseTransactionRPC" targetRef="Activity_MirrorGroup" />
+    <bpmn:sequenceFlow id="Flow_V4" sourceRef="Activity_MirrorGroup" targetRef="Activity_RestoreInventory" />
+    <bpmn:sequenceFlow id="Flow_V5" sourceRef="Activity_RestoreInventory" targetRef="Activity_UpdateSaleHeader" />
+    <bpmn:sequenceFlow id="Flow_V6" sourceRef="Activity_UpdateSaleHeader" targetRef="End_Finance" />
+    <bpmn:serviceTask id="Activity_MirrorGroup" name="Clone &#38; Invert Group Transactions / Clonar e Invertir Grupo" camunda:asyncBefore="true" camunda:type="external" camunda:topic="finance-reversal-mirror">
+      <bpmn:documentation>Iterates through every transaction in the group and creates REFUND entries with inverted amounts. Uses reversal_group_id for correlation.</bpmn:documentation>
+      <bpmn:extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="correlationKey">${reversalGroupId}</camunda:inputParameter>
+        </camunda:inputOutput>
+        <camunda:failedJobRetryTimeCycle>R3/PT1M</camunda:failedJobRetryTimeCycle>
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_V3</bpmn:incoming>
+      <bpmn:outgoing>Flow_V4</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_ReverseTransactionRPC" name="Validate Group &#38; Check is_reversed / Validar Grupo y Verificar" camunda:asyncBefore="true" camunda:type="external" camunda:topic="finance-reversal-validate">
+      <bpmn:documentation>Fetches the group_id and verifies that is_reversed is FALSE before proceeding.</bpmn:documentation>
+      <bpmn:incoming>Flow_V2</bpmn:incoming>
+      <bpmn:outgoing>Flow_V3</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_RestoreInventory" name="Restore Inventory for Reversal (If Sale) / Restaurar Inventario (Si Venta)" camunda:type="external" camunda:topic="inventory-reversal-restore">
+      <bpmn:documentation>If the original transaction was a SALE, this task creates IN movements to restore stock.</bpmn:documentation>
+      <bpmn:incoming>Flow_V4</bpmn:incoming>
+      <bpmn:outgoing>Flow_V5</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:serviceTask id="Activity_UpdateSaleHeader" name="Update Sale Header to REVERSED / Actualizar Estado Venta" camunda:type="external" camunda:topic="sales-update-status-reversed">
+      <bpmn:documentation>REVERSAL CORRELATION: Updates the sale_header status to REVERSED so the POS lane reflects reality. Links via sale_reference_number.</bpmn:documentation>
+      <bpmn:incoming>Flow_V5</bpmn:incoming>
+      <bpmn:outgoing>Flow_V6</bpmn:outgoing>
+    </bpmn:serviceTask>
+  </bpmn:process>
+  <bpmn:error id="Error_TransferFailed" name="Transfer Failed" errorCode="ERR_TRANSFER_001" />
+  <bpmn:error id="Error_CompensationFailed" name="Compensation Failed" errorCode="ERR_COMPENSATE_001" />
+  <bpmndi:BPMNDiagram id="BPMNDiagram_Finance">
+    <bpmndi:BPMNPlane id="BPMNPlane_Finance" bpmnElement="Collaboration_Finance">
+      <bpmndi:BPMNShape id="Participant_Finance_di" bpmnElement="Participant_Finance" isHorizontal="true">
+        <dc:Bounds x="160" y="80" width="2500" height="650" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_DatabaseFinance_di" bpmnElement="Lane_DatabaseFinance" isHorizontal="true">
+        <dc:Bounds x="190" y="320" width="2470" height="410" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Lane_AdminFinance_di" bpmnElement="Lane_AdminFinance" isHorizontal="true">
+        <dc:Bounds x="190" y="80" width="2470" height="240" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_Transfer_di" bpmnElement="Start_Transfer" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
+        <dc:Bounds x="212" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="204" y="165" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_InitiateTransfer_di" bpmnElement="Activity_InitiateTransfer" bioc:stroke="#1E88E5" bioc:fill="#BBDEFB">
+        <dc:Bounds x="300" y="100" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_TransferSourceDebit_di" bpmnElement="Activity_TransferSourceDebit" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="550" y="380" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_TransferDestCredit_di" bpmnElement="Activity_TransferDestCredit" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="800" y="380" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_CompensateTransfer_di" bpmnElement="Activity_CompensateTransfer" bioc:stroke="#E53935" bioc:fill="#FFCDD2">
+        <dc:Bounds x="800" y="540" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ManualIntervention_di" bpmnElement="Activity_ManualIntervention" bioc:stroke="#FDD835" bioc:fill="#FFF9C4">
+        <dc:Bounds x="1100" y="200" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_ManualRequired_di" bpmnElement="End_ManualRequired" bioc:stroke="#FDD835" bioc:fill="#FFF9C4">
+        <dc:Bounds x="1350" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1324" y="265" width="89" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="End_Finance_di" bpmnElement="End_Finance" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
+        <dc:Bounds x="2450" y="162" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="2440" y="98.5" width="55" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Start_Reversal_di" bpmnElement="Start_Reversal" bioc:stroke="#43A047" bioc:fill="#C8E6C9">
+        <dc:Bounds x="212" y="222" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="204" y="265" width="54" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_RequestReversal_di" bpmnElement="Activity_RequestReversal" bioc:stroke="#1E88E5" bioc:fill="#BBDEFB">
+        <dc:Bounds x="300" y="200" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_MirrorGroup_di" bpmnElement="Activity_MirrorGroup" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="1740" y="330" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_ReverseTransactionRPC_di" bpmnElement="Activity_ReverseTransactionRPC" bioc:stroke="#8E24AA" bioc:fill="#E1BEE7">
+        <dc:Bounds x="1530" y="330" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_RestoreInventory_di" bpmnElement="Activity_RestoreInventory" bioc:stroke="#FB8C00" bioc:fill="#FFE0B2">
+        <dc:Bounds x="2010" y="330" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_UpdateSaleHeader_di" bpmnElement="Activity_UpdateSaleHeader" bioc:stroke="#FB8C00" bioc:fill="#FFE0B2">
+        <dc:Bounds x="2230" y="330" width="160" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_CompensateFail_di" bpmnElement="BoundaryEvent_CompensateFail">
+        <dc:Bounds x="882" y="602" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="918" y="615" width="63" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BoundaryEvent_TransferFail_di" bpmnElement="BoundaryEvent_TransferFail">
+        <dc:Bounds x="832" y="442" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="868" y="455" width="63" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_T1_di" bpmnElement="Flow_T1">
+        <di:waypoint x="248" y="140" />
+        <di:waypoint x="300" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_T2_di" bpmnElement="Flow_T2">
+        <di:waypoint x="460" y="140" />
+        <di:waypoint x="505" y="140" />
+        <di:waypoint x="505" y="420" />
+        <di:waypoint x="550" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_T3_di" bpmnElement="Flow_T3">
+        <di:waypoint x="710" y="420" />
+        <di:waypoint x="800" y="420" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_T4_di" bpmnElement="Flow_T4">
+        <di:waypoint x="960" y="420" />
+        <di:waypoint x="2400" y="420" />
+        <di:waypoint x="2400" y="180" />
+        <di:waypoint x="2450" y="180" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_Compensate_di" bpmnElement="Flow_Compensate">
+        <di:waypoint x="850" y="478" />
+        <di:waypoint x="850" y="540" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_EndCompensate_di" bpmnElement="Flow_EndCompensate">
+        <di:waypoint x="800" y="580" />
+        <di:waypoint x="750" y="580" />
+        <di:waypoint x="750" y="690" />
+        <di:waypoint x="2468" y="690" />
+        <di:waypoint x="2468" y="198" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ManualIntervention_di" bpmnElement="Flow_ManualIntervention">
+        <di:waypoint x="900" y="638" />
+        <di:waypoint x="900" y="660" />
+        <di:waypoint x="1050" y="660" />
+        <di:waypoint x="1050" y="240" />
+        <di:waypoint x="1100" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_ManualResolved_di" bpmnElement="Flow_ManualResolved">
+        <di:waypoint x="1260" y="240" />
+        <di:waypoint x="1350" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_V1_di" bpmnElement="Flow_V1">
+        <di:waypoint x="248" y="240" />
+        <di:waypoint x="300" y="240" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_V2_di" bpmnElement="Flow_V2">
+        <di:waypoint x="380" y="200" />
+        <di:waypoint x="380" y="170" />
+        <di:waypoint x="1470" y="170" />
+        <di:waypoint x="1470" y="370" />
+        <di:waypoint x="1530" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_V3_di" bpmnElement="Flow_V3">
+        <di:waypoint x="1690" y="370" />
+        <di:waypoint x="1740" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_V4_di" bpmnElement="Flow_V4">
+        <di:waypoint x="1900" y="370" />
+        <di:waypoint x="2010" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_V5_di" bpmnElement="Flow_V5">
+        <di:waypoint x="2170" y="370" />
+        <di:waypoint x="2230" y="370" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_V6_di" bpmnElement="Flow_V6">
+        <di:waypoint x="2390" y="370" />
+        <di:waypoint x="2430" y="370" />
+        <di:waypoint x="2430" y="200" />
+        <di:waypoint x="2452" y="188" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
