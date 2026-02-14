@@ -78,14 +78,20 @@ export const inventoryService = {
   },
 
   async updateProduct(id: string, product: ProductoActualizar) {
+    // Exclude stock from direct metadata updates to prevent RLS/trigger issues
+    const { current_stock, ...metadata } = product as any;
+
     const { data, error } = await (supabase as any)
       .from('products')
-      .update(product)
+      .update(metadata)
       .eq('id', id)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('InventoryService.updateProduct error:', error);
+      throw error;
+    }
     return data;
   },
 
