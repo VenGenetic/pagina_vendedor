@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Link2, Unlink2 } from 'lucide-react';
@@ -116,10 +116,14 @@ export function PriceCalculator({
         }
     }, [netCost, ivaRate, grossCost, margin, sellingPrice, linked]);
 
+    // Keep a stable ref to the onChange callback
+    const onChangeRef = useRef(onChange);
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
     // ── Notify Parent ───────────────────────────────────────────
     useEffect(() => {
-        onChange?.({ cost: grossCost, margin, sellingPrice });
-    }, [grossCost, margin, sellingPrice, onChange]);
+        onChangeRef.current?.({ cost: grossCost, margin, sellingPrice });
+    }, [grossCost, margin, sellingPrice]);
 
     // ── Handlers ────────────────────────────────────────────────
     const handleNetCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {

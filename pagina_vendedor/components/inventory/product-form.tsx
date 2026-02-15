@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -136,11 +136,11 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
   const watchedMargin = watch('target_margin');
   const watchedSellingPrice = watch('selling_price');
 
-  const handlePriceChange = (values: PriceCalculatorValues) => {
+  const handlePriceChange = useCallback((values: PriceCalculatorValues) => {
     setValue('cost_price', values.cost, { shouldValidate: true });
     setValue('selling_price', Math.ceil(values.sellingPrice), { shouldValidate: true });
     setValue('target_margin', values.margin);
-  };
+  }, [setValue]);
 
   // ── Submit ───────────────────────────────────────────────────
   const onSubmitForm = async (data: ProductFormValues) => {
