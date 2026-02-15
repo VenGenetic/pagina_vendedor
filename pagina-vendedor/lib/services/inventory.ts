@@ -46,6 +46,7 @@ export const inventoryService = {
         category: product.category,
         cost_price: product.cost_price,
         selling_price: product.selling_price,
+        target_margin: product.target_margin,
         current_stock: 0, // Initialize at 0, adjust with movement
         min_stock_level: 5, // Map min_stock -> min_stock_level (default 5)
         max_stock_level: 50, // Map max_stock -> max_stock_level (default 50)
