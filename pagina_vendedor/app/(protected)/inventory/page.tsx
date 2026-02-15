@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useProducts, useLowStockProducts, queryKeys, ProductFilters } from '@/hooks/use-queries';
 import { useDebounce } from '@/hooks/use-debounce';
 import { Input } from '@/components/ui/input';
@@ -50,8 +50,8 @@ export default function InventoryPage() {
   const [stockFilter, setStockFilter] = useState<ProductFilters['stockStatus']>('all');
   const [page, setPage] = useState(1);
   // SERVER-SIDE SEARCH: Fetch only what is needed
-  // Using a reasonable pageSize (e.g., 50) instead of 100000
-  const pageSize = 50;
+  // Optimization: Reduced to 30 to improve rendering performance
+  const pageSize = 30;
 
   const { data: productsData, isLoading } = useProducts({
     search: debouncedSearch,
@@ -126,16 +126,20 @@ export default function InventoryPage() {
     }
   };
 
-  const handleUpdateStock = (product: Producto, change: number) => {
+  const handleUpdateStock = useCallback((product: Producto, change: number) => {
     setAdjustmentPending({ product, change });
-  };
+  }, []);
 
-  const handleProductSuccess = (data: any) => {
+  const handleProductSuccess = useCallback((data: any) => {
     if (data?.name) {
       setSearchTerm(data.name);
       setPage(1);
     }
-  };
+  }, []);
+
+  const handleRequestDelete = useCallback((product: Producto) => {
+    setDeleteProduct(product);
+  }, []);
 
   const handleExportExcel = async () => {
     try {
@@ -282,7 +286,7 @@ export default function InventoryPage() {
                   key={product.id}
                   product={product}
                   onUpdateStock={handleUpdateStock}
-                  onDelete={() => setDeleteProduct(product)}
+                  onDelete={handleRequestDelete}
                   onSuccess={handleProductSuccess}
                 />
               ))}
