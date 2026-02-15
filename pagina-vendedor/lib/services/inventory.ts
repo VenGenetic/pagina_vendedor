@@ -34,28 +34,55 @@ export const inventoryService = {
   },
 
   async createProduct(product: ProductoInsertar) {
-    // Get current user for the transaction
     const { data: { user } } = await supabase.auth.getUser();
 
-    // BPMN: Product_Creation with Equity/Opening Balance
-    const { data, error } = await supabase.rpc('create_product_v2', {
-      p_sku: product.sku,
-      p_name: product.name,
-      p_category: product.category,
-      p_cost_price: product.cost_price,
-      p_selling_price: product.selling_price,
-      p_current_stock: product.current_stock,
-      p_min_stock: 5, // Default min stock
-      p_max_stock: 50, // Default max stock
-      p_target_margin: product.target_margin,
-      p_user_id: user?.id, // Pass the authenticated user ID
-      p_image_url: product.image_url,
-      p_description: product.description,
-      p_brand: product.brand
-    } as any);
+    // 1. Insert product directly (mapping correct column names)
+    // omit target_margin as it's not in the schema
+    const { data: stringData, error: productError } = await supabase
+      .from('products')
+      .insert({
+        sku: product.sku,
+        name: product.name,
+        category: product.category,
+        cost_price: product.cost_price,
+        selling_price: product.selling_price,
+        current_stock: 0, // Initialize at 0, adjust with movement
+        min_stock_level: 5, // Map min_stock -> min_stock_level (default 5)
+        max_stock_level: 50, // Map max_stock -> max_stock_level (default 50)
+        image_url: product.image_url,
+        description: product.description,
+        brand: product.brand
+      })
+      .select()
+      .single();
 
-    if (error) throw error;
-    return data;
+    if (productError) throw productError;
+
+    const newProduct = stringData; // Supabase returns generic data type
+
+    // 2. Handle Initial Stock (if > 0)
+    if (product.current_stock > 0 && newProduct) {
+      const { error: movementError } = await supabase
+        .from('inventory_movements')
+        .insert({
+          product_id: newProduct.id,
+          type: 'IN',
+          quantity_change: product.current_stock,
+          unit_price: product.cost_price,
+          total_value: product.current_stock * product.cost_price,
+          reason: 'COUNT_ADJUSTMENT',
+          notes: 'Inventario Inicial',
+          created_by: user?.id
+        });
+
+      if (movementError) {
+        // Log error but don't fail the whole request since product is created
+        console.error('Error creating initial stock movement:', movementError);
+        // You might want to notify the user or try to rollback (delete product)
+      }
+    }
+
+    return newProduct;
   },
 
   async createProducts(products: ProductoInsertar[]) {
