@@ -26,8 +26,8 @@ const productSchema = z.object({
   target_margin: z.coerce.number().min(0).max(99, 'El margen no puede superar el 99%').optional().nullable(),
   current_stock: z.coerce.number().int().min(0, 'El stock debe ser mayor o igual a 0'),
 
+
   description: z.string().optional(),
-  image_url: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -72,7 +72,6 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
         current_stock: initialData.current_stock,
 
         description: initialData.description || '',
-        image_url: initialData.image_url || '',
       }
       : {
         cost_price: 0,
@@ -125,7 +124,6 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
       selling_price: 0,
       current_stock: 0,
       description: '',
-      image_url: '',
       target_margin: 30,
     });
     setCurrentDraftId(crypto.randomUUID());
@@ -251,11 +249,7 @@ export function ProductForm({ initialData, onSubmit, onCancel }: ProductFormProp
       </div>
 
       {/* ── Image URL ─────────────────────────────────────────── */}
-      <div className="space-y-2">
-        <Label htmlFor="image_url">URL Imagen</Label>
-        <Input id="image_url" {...register('image_url')} placeholder="https://..." />
-        {errors.image_url && <p className="text-sm text-destructive">{errors.image_url.message}</p>}
-      </div>
+
 
       {/* ── Description ───────────────────────────────────────── */}
       <div className="space-y-2">

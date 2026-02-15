@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { InventoryProductCard } from '@/components/inventory/inventory-product-card';
+import { InventoryTable } from '@/components/inventory/inventory-table';
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -280,17 +280,12 @@ export default function InventoryPage() {
           </div>
         ) : products && products.length > 0 ? (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {products.map((product) => (
-                <InventoryProductCard
-                  key={product.id}
-                  product={product}
-                  onUpdateStock={handleUpdateStock}
-                  onDelete={handleRequestDelete}
-                  onSuccess={handleProductSuccess}
-                />
-              ))}
-            </div>
+            <InventoryTable
+              products={products}
+              onUpdateStock={handleUpdateStock}
+              onDelete={handleRequestDelete}
+              onSuccess={handleProductSuccess}
+            />
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
