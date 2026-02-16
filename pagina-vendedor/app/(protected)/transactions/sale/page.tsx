@@ -18,7 +18,9 @@ import { useSettings } from '@/hooks/use-settings';
 import { SETTINGS_KEYS, FinancialConfig } from '@/lib/validators/settings';
 import { toast } from 'sonner';
 import { EditSaleModal } from '@/components/transactions/edit-sale-modal';
+import { EditSaleModal } from '@/components/transactions/edit-sale-modal';
 import { advancedProductSearch } from '@/lib/utils/advanced-search';
+import { Logo } from '@/components/logo';
 
 interface SaleItem {
   productId: string;
@@ -393,6 +395,7 @@ export default function NewSalePage() {
               <ArrowLeft className="h-5 w-5 text-slate-700 dark:text-slate-200" />
             </button>
           </Link>
+          <Logo className="w-8 h-8 hidden sm:flex" />
           <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">Nueva Venta</h1>
           <div className="ml-auto flex items-center gap-2">
             <DraftManager

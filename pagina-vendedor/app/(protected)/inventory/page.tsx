@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { InventoryTable } from '@/components/inventory/inventory-table';
+import { Logo } from '@/components/logo';
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -166,6 +167,9 @@ export default function InventoryPage() {
               <button className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors hidden sm:block">
                 <ArrowLeft className="h-5 w-5 text-slate-600 dark:text-slate-300" />
               </button>
+            </Link>
+            <Link href="/">
+              <Logo className="w-8 h-8 md:hidden" />
             </Link>
             <div>
               <h1 className="text-xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">Inventario</h1>

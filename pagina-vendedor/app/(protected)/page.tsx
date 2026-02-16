@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { TransferModal } from '@/components/transactions/transfer-modal';
 import { GrossProfitChart } from '@/components/dashboard/gross-profit-chart';
+import { Logo } from '@/components/logo';
 
 export default function Dashboard() {
   const router = useRouter();
@@ -60,11 +61,14 @@ export default function Dashboard() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 transition-colors">
         <div className="max-w-md md:max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-sm text-slate-500 dark:text-slate-400">Hola,</p>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
-              {user?.nombre_completo || 'Administrador'}
-            </h1>
+          <div className="flex-1 flex items-center gap-3">
+            <Logo className="w-12 h-12" />
+            <div>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Hola,</p>
+              <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">
+                {user?.nombre_completo || 'Administrador'}
+              </h1>
+            </div>
           </div>
           <div className="flex gap-2">
             <ThemeToggle />
